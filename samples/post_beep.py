@@ -3,7 +3,13 @@ import json
 import argparse
 import sys
 
-parser = argparse.ArgumentParser(description='Demo')
+#
+# Three versions of updating status - text only, with one image,
+# and multiple images and text together. Also shows a minimal version
+# of how to use argparse to control the command line interface.
+#
+
+parser = argparse.ArgumentParser(description='Post beeps to timeline')
 parser.add_argument('-m','--mode', help='mode: [text|image|images]', default="text")
 args = parser.parse_args()
 

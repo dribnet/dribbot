@@ -1,6 +1,11 @@
 import tweepy
 import json
 
+#
+# Small "hello world" tweepy program shows how to use API and
+# prints out public tweets from timeline.
+#
+
 with open('creds.json') as data_file:    
     creds = json.load(data_file)
 
