@@ -1,2 +1,5 @@
 PYTHONPATH=../faceswap python apps/smilevector.py -dn
 
+PYTHONPATH=../faceswap:../discgen python apps/smilevector.py -dn \
+    --model ../discgen/outputs/celeba_dlib_128_200z_a02/celeba_dlib_128_200z_a02.zip  \
+    --anchor-offset ../discgen/encodings/celeba_dlib_128_200z_a02_train_atvecs2.json
