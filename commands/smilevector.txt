@@ -1,0 +1,2 @@
+PYTHONPATH=../faceswap python apps/smilevector.py -dn
+
