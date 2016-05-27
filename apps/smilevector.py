@@ -16,9 +16,11 @@ from blocks.serialization import load
 from blocks.select import Selector
 from utils.sample_utils import offset_from_string, anchors_from_image, get_image_vectors, compute_splash, get_json_vectors
 from utils.sample import grid_from_latents
+import faceswap
 
 def do_convert(infile, outfile, model, smile_offset):
     aligned_file = "temp_files/aligned_file.png"
+    smile_file = "temp_files/smile_file.png"
 
     # first try to align the face
     if not doalign.align_face(local_media, aligned_file, image_size):
@@ -38,7 +40,16 @@ def do_convert(infile, outfile, model, smile_offset):
     # TODO: this is overkill
     z = compute_splash(rows=1, cols=1, dim=z_dim, space=1, anchors=anchors, spherical=True, gaussian=True)
     z = z + smile_offset
-    grid_from_latents(z, model, rows=1, cols=1, anchor_images=anchor_images, tight=True, shoulders=False, save_path=outfile)
+    grid_from_latents(z, model, rows=1, cols=1, anchor_images=anchor_images, tight=True, shoulders=False, save_path=smile_file)
+
+    try:
+        faceswap.do_faceswap(infile, smile_file, outfile)
+    except faceswap.NoFaces:
+        print("faceswap: no faces in {}".format(infile))
+        return False
+    except faceswap.TooManyFaces:
+        print("faceswap: too many faces in {}".format(infile))
+        return False
 
     return True
 
@@ -65,17 +76,6 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    # first get model ready
-    if args.model is not None:
-        print('Loading saved model...')
-        model = Model(load(args.model).algorithm.cost)
-
-    # get attributes
-    if args.anchor_offset is not None:
-        offsets = get_json_vectors(args.anchor_offset)
-        dim = len(offsets[0])
-        smile_offset = offset_from_string("31", offsets, dim)
-
     # now fire up tweepy
     with open('creds.json') as data_file:
         creds = json.load(data_file)
@@ -99,13 +99,15 @@ if __name__ == "__main__":
         # just grab most recent tweet
         stuff = api.user_timeline(screen_name = args.account, \
             count = 1, \
-            include_rts = True)
+            include_rts = False,
+            exclude_replies = False)
     else:
         # look back up to 100 tweets since last one and then show next one
         stuff = api.user_timeline(screen_name = args.account, \
             count = 100, \
             since_id = last_id,
-            include_rts = True)
+            include_rts = False,
+            exclude_replies = False)
 
     if len(stuff) == 0:
         print("(nothing to do)")
@@ -125,6 +127,17 @@ if __name__ == "__main__":
     final_media = "temp_files/final_file{}".format(ext)
 
     urllib.urlretrieve(media_url, local_media)
+
+    # first get model ready
+    if args.model is not None:
+        print('Loading saved model...')
+        model = Model(load(args.model).algorithm.cost)
+
+    # get attributes
+    if args.anchor_offset is not None:
+        offsets = get_json_vectors(args.anchor_offset)
+        dim = len(offsets[0])
+        smile_offset = offset_from_string("31", offsets, dim)
 
     result = do_convert(local_media, final_media, model, smile_offset)
 
