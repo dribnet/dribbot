@@ -67,6 +67,7 @@ if __name__ == "__main__":
     parser.add_argument('-a','--account', help='Account to follow', default="people")
     parser.add_argument('-d','--debug', help='Debug: do not post', default=False, action='store_true')
     parser.add_argument('-o','--open', help='Open image (when in debug mode)', default=False, action='store_true')
+    parser.add_argument('-s','--single', help='Process only a single image', default=False, action='store_true')
     parser.add_argument('-n','--no-update', dest='no_update',
             help='Do not update postion on timeline', default=False, action='store_true')
     parser.add_argument("--model", dest='model', type=str, default=None,
@@ -75,6 +76,10 @@ if __name__ == "__main__":
                         help="use json file as source of each anchors offsets")
 
     args = parser.parse_args()
+
+    # initialize and then lazily load
+    model = None
+    smile_offset = None
 
     # now fire up tweepy
     with open('creds.json') as data_file:
@@ -113,53 +118,57 @@ if __name__ == "__main__":
         print("(nothing to do)")
         sys.exit(0)
 
-    top = stuff[-1]._json
-    tweet_id = top["id"]
-    rawtext = top["text"]
-    text = re.sub(' http.*$', '', rawtext)
-    media = top["entities"]["media"][0]
-    media_url = media["media_url"]
-    link_url = u"https://twitter.com/{}/status/{}".format(args.account, tweet_id)
+    if args.single:
+        stuff = [ stuff[-1] ]
 
-    path = urlparse.urlparse(media_url).path
-    ext = os.path.splitext(path)[1]
-    local_media = "temp_files/media_file{}".format(ext)
-    final_media = "temp_files/final_file{}".format(ext)
+    for item in reversed(stuff):
+        top = item._json
+        tweet_id = top["id"]
+        rawtext = top["text"]
+        text = re.sub(' http.*$', '', rawtext)
+        media = top["entities"]["media"][0]
+        media_url = media["media_url"]
+        link_url = u"https://twitter.com/{}/status/{}".format(args.account, tweet_id)
 
-    urllib.urlretrieve(media_url, local_media)
+        path = urlparse.urlparse(media_url).path
+        ext = os.path.splitext(path)[1]
+        local_media = "temp_files/media_file{}".format(ext)
+        final_media = "temp_files/final_file{}".format(ext)
 
-    # first get model ready
-    if args.model is not None:
-        print('Loading saved model...')
-        model = Model(load(args.model).algorithm.cost)
+        urllib.urlretrieve(media_url, local_media)
 
-    # get attributes
-    if args.anchor_offset is not None:
-        offsets = get_json_vectors(args.anchor_offset)
-        dim = len(offsets[0])
-        smile_offset = offset_from_string("31", offsets, dim)
+        # first get model ready
+        if model is None and args.model is not None:
+            print('Loading saved model...')
+            model = Model(load(args.model).algorithm.cost)
 
-    result = do_convert(local_media, final_media, model, smile_offset)
+        # get attributes
+        if smile_offset is None and args.anchor_offset is not None:
+            offsets = get_json_vectors(args.anchor_offset)
+            dim = len(offsets[0])
+            smile_offset = offset_from_string("31", offsets, dim)
 
-    media_id = api.media_upload(final_media).media_id_string
-    update_text = u"{}\n{}".format(text, link_url)
-    if args.debug:
-        print(u"Update text: {}, Image: {}".format(update_text, final_media))
-        if not result:
-            print("(Image conversation failed)")
-            if args.open:
-                call(["open", local_media])
+        result = do_convert(local_media, final_media, model, smile_offset)
+
+        media_id = api.media_upload(final_media).media_id_string
+        update_text = u"{}\n{}".format(text, link_url)
+        if args.debug:
+            print(u"Update text: {}, Image: {}".format(update_text, final_media))
+            if not result:
+                print("(Image conversation failed)")
+                if args.open:
+                    call(["open", local_media])
+            else:
+                if args.open:
+                    call(["open", final_media])
         else:
-            if args.open:
-                call(["open", final_media])
-    else:
-        if result:
-            api.update_status(status=update_text, media_ids=[media_id])
-            print(u"Posted: {}".format(update_text))
-        else:
-            print(u"Skipped: {}".format(update_text))
+            if result:
+                api.update_status(status=update_text, media_ids=[media_id])
+                print(u"Posted: {}".format(update_text))
+            else:
+                print(u"Skipped: {}".format(update_text))
 
-    # success, update last known tweet_id
-    if not args.no_update:
-        with open(tempfile, 'w') as f:
-          f.write("{}".format(tweet_id))
+        # success, update last known tweet_id
+        if not args.no_update:
+            with open(tempfile, 'w') as f:
+              f.write("{}".format(tweet_id))
