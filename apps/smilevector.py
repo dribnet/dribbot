@@ -18,9 +18,10 @@ from utils.sample_utils import offset_from_string, anchors_from_image, get_image
 from utils.sample import grid_from_latents
 import faceswap
 
-def do_convert(infile, outfile, model, smile_offset):
+def do_convert(infile, outfile1, outfile2, model, smile_offset):
     aligned_file = "temp_files/aligned_file.png"
-    smile_file = "temp_files/smile_file.png"
+    smile1_file = "temp_files/smile1_file.png"
+    smile2_file = "temp_files/smile2_file.png"
 
     # first try to align the face
     if not doalign.align_face(local_media, aligned_file, image_size):
@@ -39,11 +40,15 @@ def do_convert(infile, outfile, model, smile_offset):
 
     # TODO: this is overkill
     z = compute_splash(rows=1, cols=1, dim=z_dim, space=1, anchors=anchors, spherical=True, gaussian=True)
-    z = z + smile_offset
-    grid_from_latents(z, model, rows=1, cols=1, anchor_images=anchor_images, tight=True, shoulders=False, save_path=smile_file)
+    z1 = z + smile_offset
+    grid_from_latents(z1, model, rows=1, cols=1, anchor_images=anchor_images, tight=True, shoulders=False, save_path=smile1_file)
+
+    z2 = z - smile_offset
+    grid_from_latents(z2, model, rows=1, cols=1, anchor_images=anchor_images, tight=True, shoulders=False, save_path=smile2_file)
 
     try:
-        faceswap.do_faceswap(infile, smile_file, outfile)
+        faceswap.do_faceswap(infile, smile1_file, outfile1)
+        faceswap.do_faceswap(infile, smile2_file, outfile2)
     except faceswap.NoFaces:
         print("faceswap: no faces in {}".format(infile))
         return False
@@ -68,7 +73,8 @@ if __name__ == "__main__":
     parser.add_argument('-d','--debug', help='Debug: do not post', default=False, action='store_true')
     parser.add_argument('-o','--open', help='Open image (when in debug mode)', default=False, action='store_true')
     parser.add_argument('-s','--single', help='Process only a single image', default=False, action='store_true')
-    parser.add_argument('-c','--creds', help='Twitter json credentials', default='creds.json')
+    parser.add_argument('-1','--creds1', help='Twitter json credentials1 (smile)', default='forcedsmilebot.json')
+    parser.add_argument('-2','--creds2', help='Twitter json credentials2 (antismile)', default='wipedsmilebot.json')
     parser.add_argument('-n','--no-update', dest='no_update',
             help='Do not update postion on timeline', default=False, action='store_true')
     parser.add_argument("--model", dest='model', type=str, default=None,
@@ -83,8 +89,10 @@ if __name__ == "__main__":
     smile_offset = None
 
     # now fire up tweepy
-    with open(args.creds) as data_file:
-        creds = json.load(data_file)
+    with open(args.creds1) as data_file:
+        creds1 = json.load(data_file)
+    with open(args.creds2) as data_file:
+        creds2 = json.load(data_file)
 
     tempfile = "temp_files/{}_follow_account_lastid.txt".format(args.account)
 
@@ -96,20 +104,23 @@ if __name__ == "__main__":
     except IOError:
         pass
 
-    auth = tweepy.OAuthHandler(creds["consumer_key"], creds["consumer_secret"])
-    auth.set_access_token(creds["access_token"], creds["access_token_secret"])
+    auth1 = tweepy.OAuthHandler(creds1["consumer_key"], creds1["consumer_secret"])
+    auth1.set_access_token(creds1["access_token"], creds1["access_token_secret"])
+    api1 = tweepy.API(auth1)
 
-    api = tweepy.API(auth)
+    auth2 = tweepy.OAuthHandler(creds2["consumer_key"], creds2["consumer_secret"])
+    auth2.set_access_token(creds2["access_token"], creds2["access_token_secret"])
+    api2 = tweepy.API(auth2)
 
     if last_id is None:
         # just grab most recent tweet
-        stuff = api.user_timeline(screen_name = args.account, \
+        stuff = api1.user_timeline(screen_name = args.account, \
             count = 1, \
             include_rts = False,
             exclude_replies = False)
     else:
         # look back up to 100 tweets since last one and then show next one
-        stuff = api.user_timeline(screen_name = args.account, \
+        stuff = api1.user_timeline(screen_name = args.account, \
             count = 100, \
             since_id = last_id,
             include_rts = False,
@@ -136,7 +147,8 @@ if __name__ == "__main__":
         path = urlparse.urlparse(media_url).path
         ext = os.path.splitext(path)[1]
         local_media = "temp_files/media_file{}".format(ext)
-        final_media = "temp_files/final_file{}".format(ext)
+        final1_media = "temp_files/final1_file{}".format(ext)
+        final2_media = "temp_files/final2_file{}".format(ext)
 
         urllib.urlretrieve(media_url, local_media)
 
@@ -151,11 +163,13 @@ if __name__ == "__main__":
             dim = len(offsets[0])
             smile_offset = offset_from_string("31", offsets, dim)
 
-        result = do_convert(local_media, final_media, model, smile_offset)
+        result = do_convert(local_media, final1_media, final2_media, model, smile_offset)
 
-        media_id = api.media_upload(final_media).media_id_string
-        update_text = u".@{} {}".format(args.account, text)
+        media_id1 = api1.media_upload(final1_media).media_id_string
+        media_id2 = api2.media_upload(final2_media).media_id_string
+        # update_text = u".@{} {}".format(args.account, text)
         # update_text = text
+        update_text = ""
         if args.debug:
             print(u"Update text: {}, Image: {}".format(update_text, final_media))
             if not result:
@@ -168,18 +182,27 @@ if __name__ == "__main__":
         else:
             if result:
                 ## THIS IS VERSION THAT POSTS A REPONSE
-                status = api.update_status(status=update_text, media_ids=[media_id], in_reply_to_status_id=tweet_id)
-                posted_id = status.id
-                posted_name = status.user.screen_name
-                print(u"Posted: {} ({} -> {})".format(update_text, posted_name, posted_id))
-                ## THIS IS VERSION THAT POSTS AS FOLLOWUP
-                # status = api.update_status(status=update_text, media_ids=[media_id])
-                # # print(status.id, status.user)
+                # status = api.update_status(status=update_text, media_ids=[media_id], in_reply_to_status_id=tweet_id)
                 # posted_id = status.id
                 # posted_name = status.user.screen_name
-                # print(u"--> Posted: {} ({} -> {})".format(update_text, posted_name, posted_id))
+                # print(u"Posted: {} ({} -> {})".format(update_text, posted_name, posted_id))
+                ## THIS IS VERSION THAT POSTS AS FOLLOWUP
+                status = api1.update_status(status=update_text, media_ids=[media_id1])
+                # print(status.id, status.user)
+                posted_id = status.id
+                posted_name = status.user.screen_name
+                print(u"--> Posted: {} ({} -> {})".format(update_text, posted_name, posted_id))
                 # respond_text = u"@{} {}".format(posted_name, link_url)
-                # api.update_status(status=respond_text, in_reply_to_status_id=posted_id)
+                # api1.update_status(status=respond_text, in_reply_to_status_id=posted_id)
+                # print(u"--> Posted response: {} ({})".format(respond_text, posted_id))
+
+                status = api2.update_status(status=update_text, media_ids=[media_id2])
+                # print(status.id, status.user)
+                posted_id = status.id
+                posted_name = status.user.screen_name
+                print(u"--> Posted: {} ({} -> {})".format(update_text, posted_name, posted_id))
+                # respond_text = u"@{} {}".format(posted_name, link_url)
+                # api2.update_status(status=respond_text, in_reply_to_status_id=posted_id)
                 # print(u"--> Posted response: {} ({})".format(respond_text, posted_id))
             else:
                 print(u"--> Skipped: {}".format(update_text))
