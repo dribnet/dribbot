@@ -68,6 +68,7 @@ if __name__ == "__main__":
     parser.add_argument('-d','--debug', help='Debug: do not post', default=False, action='store_true')
     parser.add_argument('-o','--open', help='Open image (when in debug mode)', default=False, action='store_true')
     parser.add_argument('-s','--single', help='Process only a single image', default=False, action='store_true')
+    parser.add_argument('-c','--creds', help='Twitter json credentials', default='creds.json')
     parser.add_argument('-n','--no-update', dest='no_update',
             help='Do not update postion on timeline', default=False, action='store_true')
     parser.add_argument("--model", dest='model', type=str, default=None,
@@ -82,7 +83,7 @@ if __name__ == "__main__":
     smile_offset = None
 
     # now fire up tweepy
-    with open('creds.json') as data_file:
+    with open(args.creds) as data_file:
         creds = json.load(data_file)
 
     tempfile = "temp_files/{}_follow_account_lastid.txt".format(args.account)
@@ -126,6 +127,8 @@ if __name__ == "__main__":
         tweet_id = top["id"]
         rawtext = top["text"]
         text = re.sub(' http.*$', '', rawtext)
+        if not "entities" in top or not "media" in top["entities"]:
+            continue
         media = top["entities"]["media"][0]
         media_url = media["media_url"]
         link_url = u"https://twitter.com/{}/status/{}".format(args.account, tweet_id)
@@ -151,7 +154,8 @@ if __name__ == "__main__":
         result = do_convert(local_media, final_media, model, smile_offset)
 
         media_id = api.media_upload(final_media).media_id_string
-        update_text = u"{}\n{}".format(text, link_url)
+        update_text = u".@{} {}".format(args.account, text)
+        # update_text = text
         if args.debug:
             print(u"Update text: {}, Image: {}".format(update_text, final_media))
             if not result:
@@ -163,10 +167,22 @@ if __name__ == "__main__":
                     call(["open", final_media])
         else:
             if result:
-                api.update_status(status=update_text, media_ids=[media_id])
-                print(u"Posted: {}".format(update_text))
+                ## THIS IS VERSION THAT POSTS A REPONSE
+                status = api.update_status(status=update_text, media_ids=[media_id], in_reply_to_status_id=tweet_id)
+                posted_id = status.id
+                posted_name = status.user.screen_name
+                print(u"Posted: {} ({} -> {})".format(update_text, posted_name, posted_id))
+                ## THIS IS VERSION THAT POSTS AS FOLLOWUP
+                # status = api.update_status(status=update_text, media_ids=[media_id])
+                # # print(status.id, status.user)
+                # posted_id = status.id
+                # posted_name = status.user.screen_name
+                # print(u"--> Posted: {} ({} -> {})".format(update_text, posted_name, posted_id))
+                # respond_text = u"@{} {}".format(posted_name, link_url)
+                # api.update_status(status=respond_text, in_reply_to_status_id=posted_id)
+                # print(u"--> Posted response: {} ({})".format(respond_text, posted_id))
             else:
-                print(u"Skipped: {}".format(update_text))
+                print(u"--> Skipped: {}".format(update_text))
 
         # success, update last known tweet_id
         if not args.no_update:
