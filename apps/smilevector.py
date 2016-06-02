@@ -5,6 +5,7 @@ import sys
 import re
 import urllib
 import urlparse, os
+from shutil import copyfile
 import doalign
 from subprocess import call
 
@@ -133,7 +134,22 @@ if __name__ == "__main__":
     if args.single:
         stuff = [ stuff[-1] ]
 
-    for item in reversed(stuff):
+    have_posted = False
+
+    # success, update last known tweet_id
+    if not args.no_update and len(stuff) > 0:
+        last_item = stuff[0]._json
+        last_tweet_id = last_item["id"]
+        if os.path.isfile(tempfile):
+            copyfile(tempfile, "{}.bak".format(tempfile))
+        with open(tempfile, 'w') as f:
+          f.write("{}\n".format(last_tweet_id))
+
+    # for item in reversed(stuff):
+    cur_stuff = 0
+    while not have_posted and cur_stuff < len(stuff):
+        item = stuff[cur_stuff]
+        cur_stuff = cur_stuff + 1
         top = item._json
         tweet_id = top["id"]
         rawtext = top["text"]
@@ -181,33 +197,17 @@ if __name__ == "__main__":
                     call(["open", final_media])
         else:
             if result:
-                ## THIS IS VERSION THAT POSTS A REPONSE
-                # status = api.update_status(status=update_text, media_ids=[media_id], in_reply_to_status_id=tweet_id)
-                # posted_id = status.id
-                # posted_name = status.user.screen_name
-                # print(u"Posted: {} ({} -> {})".format(update_text, posted_name, posted_id))
-                ## THIS IS VERSION THAT POSTS AS FOLLOWUP
-                status = api1.update_status(status=update_text, media_ids=[media_id1])
-                # print(status.id, status.user)
-                posted_id = status.id
-                posted_name = status.user.screen_name
-                print(u"--> Posted: {} ({} -> {})".format(update_text, posted_name, posted_id))
-                # respond_text = u"@{} {}".format(posted_name, link_url)
-                # api1.update_status(status=respond_text, in_reply_to_status_id=posted_id)
-                # print(u"--> Posted response: {} ({})".format(respond_text, posted_id))
-
                 status = api2.update_status(status=update_text, media_ids=[media_id2])
-                # print(status.id, status.user)
                 posted_id = status.id
                 posted_name = status.user.screen_name
                 print(u"--> Posted: {} ({} -> {})".format(update_text, posted_name, posted_id))
-                # respond_text = u"@{} {}".format(posted_name, link_url)
-                # api2.update_status(status=respond_text, in_reply_to_status_id=posted_id)
-                # print(u"--> Posted response: {} ({})".format(respond_text, posted_id))
+
+                status = api1.update_status(status=update_text, media_ids=[media_id1])
+                posted_id = status.id
+                posted_name = status.user.screen_name
+                print(u"--> Posted: {} ({} -> {})".format(update_text, posted_name, posted_id))
+
+                have_posted = True
             else:
                 print(u"--> Skipped: {}".format(update_text))
 
-        # success, update last known tweet_id
-        if not args.no_update:
-            with open(tempfile, 'w') as f:
-              f.write("{}".format(tweet_id))
