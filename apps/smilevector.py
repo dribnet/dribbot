@@ -9,8 +9,6 @@ from shutil import copyfile
 import doalign
 from subprocess import call
 
-image_size = 128
-
 # discgen related imports
 from blocks.model import Model
 from blocks.serialization import load
@@ -19,7 +17,7 @@ from utils.sample_utils import offset_from_string, anchors_from_image, get_image
 from utils.sample import grid_from_latents
 import faceswap
 
-def do_convert(infile, outfile1, outfile2, model, smile_offset):
+def do_convert(infile, outfile1, outfile2, model, smile_offset, image_size):
     aligned_file = "temp_files/aligned_file.png"
     smile1_file = "temp_files/smile1_file.png"
     smile2_file = "temp_files/smile2_file.png"
@@ -82,6 +80,8 @@ if __name__ == "__main__":
                         help="path to the saved model")
     parser.add_argument('--anchor-offset', dest='anchor_offset', default=None,
                         help="use json file as source of each anchors offsets")
+    parser.add_argument("--image-size", dest='image_size', type=int, default=64,
+                        help="size of (offset) images")
 
     args = parser.parse_args()
 
@@ -179,7 +179,7 @@ if __name__ == "__main__":
             dim = len(offsets[0])
             smile_offset = offset_from_string("31", offsets, dim)
 
-        result = do_convert(local_media, final1_media, final2_media, model, smile_offset)
+        result = do_convert(local_media, final1_media, final2_media, model, smile_offset, args.image_size)
 
         media_id1 = api1.media_upload(final1_media).media_id_string
         media_id2 = api2.media_upload(final2_media).media_id_string
@@ -187,7 +187,7 @@ if __name__ == "__main__":
         # update_text = text
         update_text = ""
         if args.debug:
-            print(u"Update text: {}, Image: {}".format(update_text, final_media))
+            print(u"Update text: {}, Image1: {}, Image2: {}".format(update_text, final1_media, final2_media))
             if not result:
                 print("(Image conversation failed)")
                 if args.open:

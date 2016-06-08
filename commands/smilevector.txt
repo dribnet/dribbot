@@ -1,5 +1,11 @@
 PYTHONPATH=../faceswap python apps/smilevector.py -dn
 
 PYTHONPATH=../faceswap:../discgen python apps/smilevector.py -dn \
+    --image-size 128 \
     --model ../discgen/outputs/celeba_dlib_128_200z_a02/celeba_dlib_128_200z_a02.zip  \
     --anchor-offset ../discgen/encodings/celeba_dlib_128_200z_a02_train_atvecs2.json
+
+PYTHONPATH=../faceswap:../discgen python apps/smilevector.py -dn \
+    --image-size 256 \
+    --model ../discgen/outputs/celeba_dlib_256a_400z_d04/celeba_dlib_256a_400z_d04_e56.zip \
+    --anchor-offset ../discgen/outputs/celeba_dlib_256a_400z_d04/celeba_dlib_256a_400z_d04_e56_train_atvecs2.json
