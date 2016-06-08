@@ -182,10 +182,12 @@ if __name__ == "__main__":
         result = do_convert(local_media, final1_media, final2_media, model, smile_offset, args.image_size)
 
         media_id1 = api1.media_upload(final1_media).media_id_string
+        orig_media_id1 = api1.media_upload(local_media).media_id_string
         media_id2 = api2.media_upload(final2_media).media_id_string
+        orig_media_id2 = api2.media_upload(local_media).media_id_string
         # update_text = u".@{} {}".format(args.account, text)
-        # update_text = text
-        update_text = ""
+        update_text = text
+        empty_text = u""
         if args.debug:
             print(u"Update text: {}, Image1: {}, Image2: {}".format(update_text, final1_media, final2_media))
             if not result:
@@ -197,15 +199,19 @@ if __name__ == "__main__":
                     call(["open", final_media])
         else:
             if result:
-                status = api2.update_status(status=update_text, media_ids=[media_id2])
+                status = api2.update_status(status=empty_text, media_ids=[media_id2])
                 posted_id = status.id
                 posted_name = status.user.screen_name
                 print(u"--> Posted: {} ({} -> {})".format(update_text, posted_name, posted_id))
+                respond_text = u"@{} reposted from: {}".format(posted_name, link_url)
+                status = api2.update_status(status=respond_text, in_reply_to_status_id=posted_id, media_ids=[orig_media_id2])
 
-                status = api1.update_status(status=update_text, media_ids=[media_id1])
+                status = api1.update_status(status=empty_text, media_ids=[media_id1])
                 posted_id = status.id
                 posted_name = status.user.screen_name
                 print(u"--> Posted: {} ({} -> {})".format(update_text, posted_name, posted_id))
+                respond_text = u"@{} reposted from: {}".format(posted_name, link_url)
+                status = api1.update_status(status=respond_text, in_reply_to_status_id=posted_id, media_ids=[orig_media_id1])
 
                 have_posted = True
             else:

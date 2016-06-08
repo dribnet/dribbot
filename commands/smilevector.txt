@@ -9,3 +9,9 @@ PYTHONPATH=../faceswap:../discgen python apps/smilevector.py -dn \
     --image-size 256 \
     --model ../discgen/outputs/celeba_dlib_256a_400z_d04/celeba_dlib_256a_400z_d04_e56.zip \
     --anchor-offset ../discgen/outputs/celeba_dlib_256a_400z_d04/celeba_dlib_256a_400z_d04_e56_train_atvecs2.json
+
+PYTHONPATH=../faceswap:../discgen python apps/smilevector.py -n \
+    --creds1 creds.json --creds2 creds.json \
+    --image-size 256 \
+    --model ../discgen/outputs/celeba_dlib_256a_400z_d04/celeba_dlib_256a_400z_d04_e56.zip \
+    --anchor-offset ../discgen/outputs/celeba_dlib_256a_400z_d04/celeba_dlib_256a_400z_d04_e56_train_atvecs2.json
