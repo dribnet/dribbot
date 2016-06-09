@@ -18,10 +18,12 @@ from blocks.serialization import load
 from blocks.select import Selector
 from utils.sample_utils import offset_from_string, anchors_from_image, get_image_vectors, compute_splash, get_json_vectors
 from utils.sample import samples_from_latents
+from experiments.run_classifier import create_running_graphs
 import faceswap
 import numpy as np
 from PIL import Image
 from scipy.misc import imread, imsave
+import theano
 
 def check_recent(infile, recentfile):
     return True
@@ -29,7 +31,7 @@ def check_recent(infile, recentfile):
 def add_to_recent(infile, recentfile, limit=48):
     return True
 
-def do_convert(infile, outfile1, outfile2, model, smile_offset, image_size, initial_steps=10, recon_steps=10, offset_steps=20):
+def do_convert(infile, outfile1, outfile2, model, classifier, smile_offset, image_size, initial_steps=10, recon_steps=10, offset_steps=20):
     aligned_file = "temp_files/aligned_file.png"
     recon_file = "temp_files/recon_file.png"
     smile1_dir = "temp_files/smile1_seq/"
@@ -45,11 +47,29 @@ def do_convert(infile, outfile1, outfile2, model, smile_offset, image_size, init
 
     # first encode image to vector
     _, _, anchor_images = anchors_from_image(aligned_file, image_size=(image_size, image_size))
+
+    # classifiy
+    classifier_function = None
+    if classifier != None:
+        print('Compiling classifier function...')
+        classifier_function = theano.function(classifier.inputs, classifier.outputs)
+        yhat = classifier_function(anchor_images[0].reshape(1,3,256,256))
+        yn = np.array(yhat[0])
+        print("RESULT", yn.shape, yn[0])
+        has_smile = False
+        if(yn[0][31] >= 0.5):
+            has_smile = True
+        print("RESULT 31=smile", yn[0][31], has_smile)
+    else:
+        has_smile = random.choice([True, False])
+
     anchor = get_image_vectors(model, anchor_images)
-    anchors_smile = [anchor[0], anchor[0] + smile_offset]
-    anchors_antismile = [anchor[0], anchor[0] - smile_offset]
-    both_anchors = [anchors_smile, anchors_antismile]
-    chosen_anchor = random.choice(both_anchors)
+    if has_smile:
+        print("Smile detected, removing")
+        chosen_anchor = [anchor[0], anchor[0] - smile_offset]
+    else:
+        print("Smile not detected, providing")
+        chosen_anchor = [anchor[0], anchor[0] + smile_offset]
 
     # fire up decoder
     selector = Selector(model.top_bricks)
@@ -135,7 +155,7 @@ def do_convert(infile, outfile1, outfile2, model, smile_offset, image_size, init
         cur_ffmpeg_sequence = samples_sequence_dir + ffmpeg_sequence
         if os.path.exists(movie_file):
             os.remove(movie_file)
-        command = "ffmpeg -r 20 -f image2 -i \"{}\" -c:v libx264 -crf 20 -pix_fmt yuv420p -tune fastdecode -y -tune zerolatency -profile:v baseline {}".format(cur_ffmpeg_sequence, movie_file)
+        command = "/usr/local/bin/ffmpeg -r 20 -f image2 -i \"{}\" -c:v libx264 -crf 20 -pix_fmt yuv420p -tune fastdecode -y -tune zerolatency -profile:v baseline {}".format(cur_ffmpeg_sequence, movie_file)
         print("COMMAND IS ", command)
         result = os.system(command)
         if result != 0:
@@ -170,10 +190,13 @@ if __name__ == "__main__":
                         help="use json file as source of each anchors offsets")
     parser.add_argument("--image-size", dest='image_size', type=int, default=64,
                         help="size of (offset) images")
+    parser.add_argument('--classifier', dest='classifier', type=str,
+                        default=None)
     args = parser.parse_args()
 
     # initialize and then lazily load
     model = None
+    classifier = None
     smile_offset = None
 
     # state tracking files from run to run
@@ -268,6 +291,11 @@ if __name__ == "__main__":
             print('Loading saved model...')
             model = Model(load(args.model).algorithm.cost)
 
+        # first get model ready
+        if classifier is None and args.classifier is not None:
+            print('Loading saved classifier...')
+            classifier = create_running_graphs(args.classifier)
+
         # get attributes
         if smile_offset is None and args.anchor_offset is not None:
             offsets = get_json_vectors(args.anchor_offset)
@@ -276,7 +304,7 @@ if __name__ == "__main__":
 
         result = check_recent(local_media, recentfile)
         if result:
-            result = do_convert(local_media, final1_media, final2_media, model, smile_offset, args.image_size)
+            result = do_convert(local_media, final1_media, final2_media, model, classifier, smile_offset, args.image_size)
 
         # update_text = u".@{} {}".format(args.account, text)
         update_text = u"{}".format(text)
@@ -349,7 +377,10 @@ if __name__ == "__main__":
 
                 have_posted = True
             else:
-                print(u"--> Skipped: {}".format(update_text))
+                try:
+                    print(u"--> Skipped: {}".format(update_text))
+                except:
+                    print("--> Something skipped")
 
         if have_posted and not args.no_update:
             add_to_recent(local_media, recentfile)
