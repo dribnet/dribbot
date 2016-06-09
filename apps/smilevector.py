@@ -135,7 +135,7 @@ def do_convert(infile, outfile1, outfile2, model, smile_offset, image_size, init
         cur_ffmpeg_sequence = samples_sequence_dir + ffmpeg_sequence
         if os.path.exists(movie_file):
             os.remove(movie_file)
-        command = "ffmpeg -r 30 -f image2 -i \"{}\" -c:v libx264 -crf 20 -pix_fmt yuv420p -tune fastdecode -y -tune zerolatency -profile:v baseline {}".format(cur_ffmpeg_sequence, movie_file)
+        command = "ffmpeg -r 20 -f image2 -i \"{}\" -c:v libx264 -crf 20 -pix_fmt yuv420p -tune fastdecode -y -tune zerolatency -profile:v baseline {}".format(cur_ffmpeg_sequence, movie_file)
         print("COMMAND IS ", command)
         result = os.system(command)
         if result != 0:
@@ -323,7 +323,10 @@ if __name__ == "__main__":
                 posted_id = r_json['id']
                 posted_name = r_json['user']['screen_name']
 
-                print(u"--> Posted: {} ({} -> {})".format(update_text, posted_name, posted_id))
+                try:
+                    print(u"--> Posted: {} ({} -> {})".format(update_text, posted_name, posted_id))
+                except:
+                    print("--> Something posted")
                 respond_text = u"@{} reposted from: {}".format(posted_name, link_url)
                 status = api1.update_status(status=respond_text, in_reply_to_status_id=posted_id)
 
