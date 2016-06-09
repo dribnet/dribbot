@@ -14,8 +14,10 @@ from blocks.model import Model
 from blocks.serialization import load
 from blocks.select import Selector
 from utils.sample_utils import offset_from_string, anchors_from_image, get_image_vectors, compute_splash, get_json_vectors
-from utils.sample import grid_from_latents
+from utils.sample import samples_from_latents
 import faceswap
+import numpy as np
+from PIL import Image
 
 def check_recent(infile, recentfile):
     return True
@@ -23,10 +25,15 @@ def check_recent(infile, recentfile):
 def add_to_recent(infile, recentfile, limit=48):
     return True
 
-def do_convert(infile, outfile1, outfile2, model, smile_offset, image_size):
+def do_convert(infile, outfile1, outfile2, model, smile_offset, image_size, recon_steps=10, offset_steps=20):
     aligned_file = "temp_files/aligned_file.png"
-    smile1_file = "temp_files/smile1_file.png"
-    smile2_file = "temp_files/smile2_file.png"
+    smile1_dir = "temp_files/smile1_seq/"
+    smile2_dir = "temp_files/smile2_seq/"
+    generic_sequence = "{:03d}.png"
+    smile1_sequence = smile1_dir + generic_sequence
+    smile2_sequence = smile2_dir + generic_sequence
+    smile1_file = "temp_files/smile1_file.mp4"
+    smile2_file = "temp_files/smile2_file.mp4"
 
     # first try to align the face
     if not doalign.align_face(local_media, aligned_file, image_size):
@@ -36,30 +43,42 @@ def do_convert(infile, outfile1, outfile2, model, smile_offset, image_size):
 
     # first encode image to vector
     _, _, anchor_images = anchors_from_image(aligned_file, image_size=(image_size, image_size))
-    anchors = get_image_vectors(model, anchor_images)
+    anchor = get_image_vectors(model, anchor_images)
+    anchors_smile = [anchor[0], anchor[0] + smile_offset]
+    anchors_antismile = [anchor[0], anchor[0] - smile_offset]
 
     # fire up decoder
     selector = Selector(model.top_bricks)
     decoder_mlp, = selector.select('/decoder_mlp').bricks
     z_dim = decoder_mlp.input_dim
 
-    # TODO: this is overkill
-    z = compute_splash(rows=1, cols=1, dim=z_dim, space=1, anchors=anchors, spherical=True, gaussian=True)
-    z1 = z + smile_offset
-    grid_from_latents(z1, model, rows=1, cols=1, anchor_images=anchor_images, tight=True, shoulders=False, save_path=smile1_file)
+    settings = [
+        [anchors_smile, smile1_dir, smile1_sequence],
+        [anchors_antismile, smile2_dir, smile2_sequence]
+    ]
 
-    z2 = z - smile_offset
-    grid_from_latents(z2, model, rows=1, cols=1, anchor_images=anchor_images, tight=True, shoulders=False, save_path=smile2_file)
+    for cur_setting in settings:
+        anchors, samples_sequence_dir, samples_sequence_filename = cur_setting
 
-    try:
-        faceswap.do_faceswap(infile, smile1_file, outfile1)
-        faceswap.do_faceswap(infile, smile2_file, outfile2)
-    except faceswap.NoFaces:
-        print("faceswap: no faces in {}".format(infile))
-        return False
-    except faceswap.TooManyFaces:
-        print("faceswap: too many faces in {}".format(infile))
-        return False
+        z_latents = compute_splash(rows=1, cols=offset_steps, dim=z_dim, space=offset_steps-1, anchors=anchors, spherical=True, gaussian=False)
+        samples_array = samples_from_latents(z_latents, model)
+
+        if not os.path.exists(samples_sequence_dir):
+            os.makedirs(samples_sequence_dir)
+        for i, sample in enumerate(samples_array):
+            try:
+                stack = np.dstack(sample)
+                face_image_array = (255 * np.dstack(sample)).astype(np.uint8)
+                face_landmarks = faceswap.get_landmarks(face_image_array)
+                filename = samples_sequence_filename.format(i)
+                faceswap.do_faceswap_from_face(infile, face_image_array, face_landmarks, filename)
+                print("generated file: {}".format(filename))
+            except faceswap.NoFaces:
+                print("faceswap: no faces in {}".format(infile))
+                return False
+            except faceswap.TooManyFaces:
+                print("faceswap: too many faces in {}".format(infile))
+                return False
 
     return True
 

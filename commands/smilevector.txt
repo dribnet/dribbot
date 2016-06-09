@@ -16,8 +16,19 @@ PYTHONPATH=../faceswap:../discgen python apps/smilevector.py -n \
     --model ../discgen/outputs/celeba_dlib_256a_400z_d04/celeba_dlib_256a_400z_d04_e56.zip \
     --anchor-offset ../discgen/outputs/celeba_dlib_256a_400z_d04/celeba_dlib_256a_400z_d04_e56_train_atvecs2.json
 
-PYTHONPATH=../faceswap:../discgen python apps/smilevector.py -n \
+PYTHONPATH=../faceswap:../discgen python apps/smilevector.py -dn \
     --creds1 creds.json --creds2 creds.json \
     --image-size 256 \
     --model=../discgen/outputs/celeba_dlib_256a_400z_d05/celeba_dlib_256a_400z_d05_e8.zip \
     --anchor-offset ../discgen/outputs/celeba_dlib_256a_400z_d05/celeba_dlib_256a_400z_d05_e8_train_atvecs2.json
+
+THEANORC=theanorc.mine PYTHONPATH=../faceswap:../discgen /usr/local/anaconda/bin/python \
+    apps/smilevector.py -dn \
+    --image-size 256 \
+    --model=../discgen/outputs/celeba_dlib_256a_400z_d05/celeba_dlib_256a_400z_d05_e8.zip \
+    --anchor-offset ../discgen/outputs/celeba_dlib_256a_400z_d05/celeba_dlib_256a_400z_d05_e8_train_atvecs2.json \
+
+ffmpeg -r 30 -f image2 -i "temp_files/smile1_seq/%3d.png" \
+  -c:v libx264 -crf 20 -pix_fmt yuv420p -tune fastdecode \
+  -y \
+  -tune zerolatency -profile:v baseline temp_files/smile1_file.mp4
