@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 import tweepy
 from TwitterAPI import TwitterAPI
 import json
@@ -41,7 +44,7 @@ def do_convert(infile, outfile1, outfile2, model, classifier, smile_offset, imag
 
     # first try to align the face
     if not doalign.align_face(local_media, aligned_file, image_size):
-        return False
+        return False, False
 
     # now try to force a smile
 
@@ -116,10 +119,10 @@ def do_convert(infile, outfile1, outfile2, model, classifier, smile_offset, imag
             recon_array = imread(recon_file)
         except faceswap.NoFaces:
             print("faceswap: no faces in {}".format(infile))
-            return False
+            return False, False
         except faceswap.TooManyFaces:
             print("faceswap: too many faces in {}".format(infile))
-            return False
+            return False, False
 
         # now save interpolations to recon
         for i in range(1,recon_steps):
@@ -141,10 +144,10 @@ def do_convert(infile, outfile1, outfile2, model, classifier, smile_offset, imag
                 print("generated file: {}".format(filename))
             except faceswap.NoFaces:
                 print("faceswap: no faces in {}".format(infile))
-                return False
+                return False, False
             except faceswap.TooManyFaces:
                 print("faceswap: too many faces in {}".format(infile))
-                return False
+                return False, False
 
         # copy last image back around to first
         last_filename = samples_sequence_filename.format(initial_steps + recon_steps + offset_steps - 1)
@@ -159,11 +162,11 @@ def do_convert(infile, outfile1, outfile2, model, classifier, smile_offset, imag
         print("COMMAND IS ", command)
         result = os.system(command)
         if result != 0:
-            return False
+            return False, False
         if not os.path.isfile(movie_file):
-            return False
+            return False, False
 
-    return True
+    return True, has_smile
 
 def check_status(r):
     if r.status_code < 200 or r.status_code > 299:
@@ -304,11 +307,15 @@ if __name__ == "__main__":
 
         result = check_recent(local_media, recentfile)
         if result:
-            result = do_convert(local_media, final1_media, final2_media, model, classifier, smile_offset, args.image_size)
+            result, had_smile = do_convert(local_media, final1_media, final2_media, model, classifier, smile_offset, args.image_size)
+
+        if had_smile:
+            post_text = u"😀⬇"
+        else:
+            post_text = u"😀⬆"
 
         # update_text = u".@{} {}".format(args.account, text)
         update_text = u"{}".format(text)
-        empty_text = u""
         if args.debug:
             print(u"Update text: {}, Image1: {}, Image2: {}".format(update_text, final1_media, final2_media))
             if not result:
@@ -343,7 +350,7 @@ if __name__ == "__main__":
                 check_status(r)
 
                 print("posting")
-                r = api_raw.request('statuses/update', {'status':empty_text, 'media_ids':media_id})
+                r = api_raw.request('statuses/update', {'status':post_text, 'media_ids':media_id})
                 check_status(r)
 
                 r_json = r.json()
