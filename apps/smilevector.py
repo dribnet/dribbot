@@ -17,6 +17,12 @@ from utils.sample_utils import offset_from_string, anchors_from_image, get_image
 from utils.sample import grid_from_latents
 import faceswap
 
+def check_recent(infile, recentfile):
+    return True
+
+def add_to_recent(infile, recentfile, limit=48):
+    return True
+
 def do_convert(infile, outfile1, outfile2, model, smile_offset, image_size):
     aligned_file = "temp_files/aligned_file.png"
     smile1_file = "temp_files/smile1_file.png"
@@ -96,6 +102,7 @@ if __name__ == "__main__":
         creds2 = json.load(data_file)
 
     tempfile = "temp_files/{}_follow_account_lastid.txt".format(args.account)
+    recentfile = "temp_files/{}_recent_posts_hashrecentes.txt".format(args.account)
 
     # try to recover last known tweet_id (if fails, last_id will stay None)
     last_id = None
@@ -179,14 +186,12 @@ if __name__ == "__main__":
             dim = len(offsets[0])
             smile_offset = offset_from_string("31", offsets, dim)
 
-        result = do_convert(local_media, final1_media, final2_media, model, smile_offset, args.image_size)
+        result = check_recent(local_media, recentfile)
+        if result:
+            result = do_convert(local_media, final1_media, final2_media, model, smile_offset, args.image_size)
 
-        media_id1 = api1.media_upload(final1_media).media_id_string
-        orig_media_id1 = api1.media_upload(local_media).media_id_string
-        media_id2 = api2.media_upload(final2_media).media_id_string
-        orig_media_id2 = api2.media_upload(local_media).media_id_string
         # update_text = u".@{} {}".format(args.account, text)
-        update_text = text
+        update_text = u"{}".format(text)
         empty_text = u""
         if args.debug:
             print(u"Update text: {}, Image1: {}, Image2: {}".format(update_text, final1_media, final2_media))
@@ -199,21 +204,27 @@ if __name__ == "__main__":
                     call(["open", final_media])
         else:
             if result:
+                media_id1 = api1.media_upload(final1_media).media_id_string
+                media_id2 = api2.media_upload(final2_media).media_id_string
+
                 status = api2.update_status(status=empty_text, media_ids=[media_id2])
                 posted_id = status.id
                 posted_name = status.user.screen_name
                 print(u"--> Posted: {} ({} -> {})".format(update_text, posted_name, posted_id))
                 respond_text = u"@{} reposted from: {}".format(posted_name, link_url)
-                status = api2.update_status(status=respond_text, in_reply_to_status_id=posted_id, media_ids=[orig_media_id2])
+                status = api2.update_status(status=respond_text, in_reply_to_status_id=posted_id)
 
                 status = api1.update_status(status=empty_text, media_ids=[media_id1])
                 posted_id = status.id
                 posted_name = status.user.screen_name
                 print(u"--> Posted: {} ({} -> {})".format(update_text, posted_name, posted_id))
                 respond_text = u"@{} reposted from: {}".format(posted_name, link_url)
-                status = api1.update_status(status=respond_text, in_reply_to_status_id=posted_id, media_ids=[orig_media_id1])
+                status = api1.update_status(status=respond_text, in_reply_to_status_id=posted_id)
 
                 have_posted = True
             else:
                 print(u"--> Skipped: {}".format(update_text))
+
+        if have_posted and not args.no_update:
+            add_to_recent(local_media, recentfile)
 
