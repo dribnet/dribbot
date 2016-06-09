@@ -1,4 +1,5 @@
 import tweepy
+from TwitterAPI import TwitterAPI
 import json
 import argparse
 import sys
@@ -8,6 +9,7 @@ import urlparse, os
 from shutil import copyfile
 import os
 import doalign
+import random
 from subprocess import call
 
 # discgen related imports
@@ -46,6 +48,8 @@ def do_convert(infile, outfile1, outfile2, model, smile_offset, image_size, init
     anchor = get_image_vectors(model, anchor_images)
     anchors_smile = [anchor[0], anchor[0] + smile_offset]
     anchors_antismile = [anchor[0], anchor[0] - smile_offset]
+    both_anchors = [anchors_smile, anchors_antismile]
+    chosen_anchor = random.choice(both_anchors)
 
     # fire up decoder
     selector = Selector(model.top_bricks)
@@ -53,8 +57,7 @@ def do_convert(infile, outfile1, outfile2, model, smile_offset, image_size, init
     z_dim = decoder_mlp.input_dim
 
     settings = [
-        [anchors_smile, smile1_dir, outfile1],
-        [anchors_antismile, smile2_dir, outfile2]
+        [chosen_anchor, smile1_dir, outfile1]
     ]
 
     for cur_setting in settings:
@@ -142,6 +145,11 @@ def do_convert(infile, outfile1, outfile2, model, smile_offset, image_size, init
 
     return True
 
+def check_status(r):
+    if r.status_code < 200 or r.status_code > 299:
+        print(r.status_code)
+        print(r.text)
+        sys.exit(1)
 #
 #
 
@@ -193,6 +201,8 @@ if __name__ == "__main__":
     auth2 = tweepy.OAuthHandler(creds2["consumer_key"], creds2["consumer_secret"])
     auth2.set_access_token(creds2["access_token"], creds2["access_token_secret"])
     api2 = tweepy.API(auth2)
+
+    api_raw = TwitterAPI(creds1["consumer_key"], creds1["consumer_secret"], creds1["access_token"], creds1["access_token_secret"])
 
     # ready to scrape the last 100 tweets
     if last_id is None:
@@ -282,22 +292,57 @@ if __name__ == "__main__":
                     call(["open", final_media])
         else:
             if result:
-                media_id1 = api1.media_upload(final1_media).media_id_string
-                media_id2 = api2.media_upload(final2_media).media_id_string
+                # https://github.com/geduldig/TwitterAPI/blob/master/examples/upload_video.py
+                bytes_sent = 0
+                total_bytes = os.path.getsize(final1_media)
+                file = open(final1_media, 'rb')
+                r = api_raw.request('media/upload', {'command':'INIT', 'media_type':'video/mp4', 'total_bytes':total_bytes})
+                check_status(r)
 
-                status = api2.update_status(status=empty_text, media_ids=[media_id2])
-                posted_id = status.id
-                posted_name = status.user.screen_name
-                print(u"--> Posted: {} ({} -> {})".format(update_text, posted_name, posted_id))
-                respond_text = u"@{} reposted from: {}".format(posted_name, link_url)
-                status = api2.update_status(status=respond_text, in_reply_to_status_id=posted_id)
+                media_id = r.json()['media_id']
+                segment_id = 0
 
-                status = api1.update_status(status=empty_text, media_ids=[media_id1])
-                posted_id = status.id
-                posted_name = status.user.screen_name
+                while bytes_sent < total_bytes:
+                  chunk = file.read(4*1024*1024)
+                  r = api_raw.request('media/upload', {'command':'APPEND', 'media_id':media_id, 'segment_index':segment_id}, {'media':chunk})
+                  check_status(r)
+                  segment_id = segment_id + 1
+                  bytes_sent = file.tell()
+                  print('[' + str(total_bytes) + ']', str(bytes_sent))
+
+                print("FINALIZING")
+                r = api_raw.request('media/upload', {'command':'FINALIZE', 'media_id':media_id})
+                check_status(r)
+
+                print("posting")
+                r = api_raw.request('statuses/update', {'status':empty_text, 'media_ids':media_id})
+                check_status(r)
+
+                r_json = r.json()
+                # print("JSON: ", r_json)
+                posted_id = r_json['id']
+                posted_name = r_json['user']['screen_name']
+
                 print(u"--> Posted: {} ({} -> {})".format(update_text, posted_name, posted_id))
                 respond_text = u"@{} reposted from: {}".format(posted_name, link_url)
                 status = api1.update_status(status=respond_text, in_reply_to_status_id=posted_id)
+
+                # media_id1 = api1.media_upload(final1_media).media_id_string
+                # media_id2 = api2.media_upload(final2_media).media_id_string
+
+                # status = api2.update_status(status=empty_text, media_ids=[media_id2])
+                # posted_id = status.id
+                # posted_name = status.user.screen_name
+                # print(u"--> Posted: {} ({} -> {})".format(update_text, posted_name, posted_id))
+                # respond_text = u"@{} reposted from: {}".format(posted_name, link_url)
+                # status = api2.update_status(status=respond_text, in_reply_to_status_id=posted_id)
+
+                # status = api1.update_status(status=empty_text, media_ids=[media_id1])
+                # posted_id = status.id
+                # posted_name = status.user.screen_name
+                # print(u"--> Posted: {} ({} -> {})".format(update_text, posted_name, posted_id))
+                # respond_text = u"@{} reposted from: {}".format(posted_name, link_url)
+                # status = api1.update_status(status=respond_text, in_reply_to_status_id=posted_id)
 
                 have_posted = True
             else:
