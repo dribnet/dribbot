@@ -34,6 +34,8 @@ def check_recent(infile, recentfile):
 def add_to_recent(infile, recentfile, limit=48):
     return True
 
+max_allowable_extent = 140
+
 def do_convert(infile, outfile1, outfile2, model, classifier, smile_offset, image_size, initial_steps=10, recon_steps=10, offset_steps=20):
     aligned_file = "temp_files/aligned_file.png"
     recon_file = "temp_files/recon_file.png"
@@ -46,7 +48,15 @@ def do_convert(infile, outfile1, outfile2, model, classifier, smile_offset, imag
     if not doalign.align_face(local_media, aligned_file, image_size):
         return False, False
 
-    # now try to force a smile
+    # go ahead and cache the main (body) image and landmarks, and fail if face is too big
+    body_image_array = imread(infile)
+    body_landmarks = faceswap.get_landmarks(body_image_array)
+    max_extent = faceswap.get_max_extent(body_landmarks)
+    if (max_extent > max_allowable_extent):
+        print("face to large: {}", max_extent)
+        return False, False
+    else:
+        print("face not too large: {}", max_extent)
 
     # first encode image to vector
     _, _, anchor_images = anchors_from_image(aligned_file, image_size=(image_size, image_size))
@@ -58,7 +68,6 @@ def do_convert(infile, outfile1, outfile2, model, classifier, smile_offset, imag
         classifier_function = theano.function(classifier.inputs, classifier.outputs)
         yhat = classifier_function(anchor_images[0].reshape(1,3,256,256))
         yn = np.array(yhat[0])
-        print("RESULT", yn.shape, yn[0])
         has_smile = False
         if(yn[0][31] >= 0.5):
             has_smile = True
@@ -103,10 +112,9 @@ def do_convert(infile, outfile1, outfile2, model, classifier, smile_offset, imag
         samples_array = samples_from_latents(z_latents, model)
 
         # save original file as-is
-        original_array = imread(infile)
         for i in range(initial_steps):
             filename = samples_sequence_filename.format(1 + i)
-            imsave(filename, original_array)
+            imsave(filename, body_image_array)
             print("original file: {}".format(filename))
 
         # build face swapped reconstruction
@@ -128,7 +136,7 @@ def do_convert(infile, outfile1, outfile2, model, classifier, smile_offset, imag
         for i in range(1,recon_steps):
             frac_orig = ((recon_steps - i) / (1.0 * recon_steps))
             frac_recon = (i / (1.0 * recon_steps))
-            interpolated_im = frac_orig * original_array + frac_recon * recon_array
+            interpolated_im = frac_orig * body_image_array + frac_recon * recon_array
             filename = samples_sequence_filename.format(i+initial_steps)
             imsave(filename, interpolated_im)
             print("interpolated file: {}".format(filename))
@@ -179,12 +187,11 @@ def check_status(r):
 if __name__ == "__main__":
     # argparse
     parser = argparse.ArgumentParser(description='Follow account and repost munged images')
-    parser.add_argument('-a','--account', help='Account to follow', default="people")
+    parser.add_argument('-a','--account', help='Account to follow', default="peopleschoice")
     parser.add_argument('-d','--debug', help='Debug: do not post', default=False, action='store_true')
     parser.add_argument('-o','--open', help='Open image (when in debug mode)', default=False, action='store_true')
     parser.add_argument('-s','--single', help='Process only a single image', default=False, action='store_true')
-    parser.add_argument('-1','--creds1', help='Twitter json credentials1 (smile)', default='forcedsmilebot.json')
-    parser.add_argument('-2','--creds2', help='Twitter json credentials2 (antismile)', default='wipedsmilebot.json')
+    parser.add_argument('-c','--creds', help='Twitter json credentials1 (smile)', default='forcedsmilebot.json')
     parser.add_argument('-n','--no-update', dest='no_update',
             help='Do not update postion on timeline', default=False, action='store_true')
     parser.add_argument("--model", dest='model', type=str, default=None,
@@ -215,26 +222,20 @@ if __name__ == "__main__":
         pass
 
     # now fire up tweepy
-    with open(args.creds1) as data_file:
-        creds1 = json.load(data_file)
-    with open(args.creds2) as data_file:
-        creds2 = json.load(data_file)
+    with open(args.creds) as data_file:
+        creds = json.load(data_file)
 
-    auth1 = tweepy.OAuthHandler(creds1["consumer_key"], creds1["consumer_secret"])
-    auth1.set_access_token(creds1["access_token"], creds1["access_token_secret"])
+    auth1 = tweepy.OAuthHandler(creds["consumer_key"], creds["consumer_secret"])
+    auth1.set_access_token(creds["access_token"], creds["access_token_secret"])
     api1 = tweepy.API(auth1)
 
-    auth2 = tweepy.OAuthHandler(creds2["consumer_key"], creds2["consumer_secret"])
-    auth2.set_access_token(creds2["access_token"], creds2["access_token_secret"])
-    api2 = tweepy.API(auth2)
-
-    api_raw = TwitterAPI(creds1["consumer_key"], creds1["consumer_secret"], creds1["access_token"], creds1["access_token_secret"])
+    api_raw = TwitterAPI(creds["consumer_key"], creds["consumer_secret"], creds["access_token"], creds["access_token_secret"])
 
     # ready to scrape the last 100 tweets
     if last_id is None:
         # just grab most recent tweet
         stuff = api1.user_timeline(screen_name = args.account, \
-            count = 1, \
+            count = 100, \
             include_rts = False,
             exclude_replies = False)
     else:
