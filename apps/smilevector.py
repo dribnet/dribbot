@@ -35,17 +35,68 @@ def add_to_recent(infile, recentfile, limit=48):
     return True
 
 max_allowable_extent = 140
+# the input image file is algined and saved
+aligned_file = "temp_files/aligned_file.png"
+# the reconstruction is also saved
+recon_file = "temp_files/recon_file.png"
+# this is the final swapped image
+final_image = "temp_files/final_image.png"
+# the interpolated sequence is saved into this directory
+sequence_dir = "temp_files/image_sequence/"
+# template for output png files
+generic_sequence = "{:03d}.png"
+samples_sequence_filename = sequence_dir + generic_sequence
+# template for ffmpeg arguments
+ffmpeg_sequence = "%3d.png"
+ffmpeg_sequence_filename = sequence_dir + ffmpeg_sequence
 
-def do_convert(infile, outfile1, outfile2, model, classifier, smile_offset, image_size, initial_steps=10, recon_steps=10, offset_steps=20):
-    aligned_file = "temp_files/aligned_file.png"
-    recon_file = "temp_files/recon_file.png"
-    smile1_dir = "temp_files/smile1_seq/"
-    smile2_dir = "temp_files/smile2_seq/"
-    generic_sequence = "{:03d}.png"
-    ffmpeg_sequence = "%3d.png"
+def make_or_cleanup(local_dir):
+    # make output directory if it is not there
+    if not os.path.exists(local_dir):
+        os.makedirs(local_dir)
 
-    # first try to align the face
-    if not doalign.align_face(local_media, aligned_file, image_size):
+    # and clean it out if it is there
+    filelist = [ f for f in os.listdir(local_dir) ]
+    for f in filelist:
+        os.remove(os.path.join(local_dir, f))
+
+archive_text = "metadata.txt"
+archive_aligned = "aligned.png"
+archive_recon = "reconstruction.png"
+archive_final_image = "final_image.png"
+archive_final_movie = "final_movie.mp4"
+
+def archive_post(posted_id, original_text, post_text, respond_text, downloaded_basename, downloaded_input, final_movie):
+    # setup paths
+    archive_dir = "archives/{}".format(posted_id)
+    archive_input_path = "{}/{}".format(archive_dir, downloaded_basename)
+    archive_text_path = "{}/{}".format(archive_dir, archive_text)
+    archive_aligned_path = "{}/{}".format(archive_dir, archive_aligned)
+    archive_recon_path = "{}/{}".format(archive_dir, archive_recon)
+    archive_final_iamge_path = "{}/{}".format(archive_dir, archive_final_image)
+    archive_final_movie_path = "{}/{}".format(archive_dir, archive_final_movie)
+
+    # prepare output directory
+    make_or_cleanup(archive_dir)
+
+    # save metadata
+    with open(archive_text_path, 'a') as the_file:
+        the_file.write(u"posted_id\n{}\n".format(posted_id))
+        the_file.write(u"original_text\n{}\n".format(original_text))
+        the_file.write(u' '.join([u"post_text", post_text]).encode('utf-8').strip())
+        the_file.write(u"respond_text\n{}\n".format(respond_text))
+
+    # save input, a few working files, outputs
+    copyfile(downloaded_input, archive_input_path)
+    copyfile(aligned_file, archive_aligned)
+    copyfile(recon_file, archive_recon_path)
+    copyfile(final_image, archive_final_iamge_path)
+    copyfile(final_movie, archive_final_movie_path)
+
+def do_convert(infile, outfile, model, classifier, smile_offset, image_size, initial_steps=10, recon_steps=10, offset_steps=20):
+
+    # first align input face to canonical alignment and save result
+    if not doalign.align_face(infile, aligned_file, image_size):
         return False, False
 
     # go ahead and cache the main (body) image and landmarks, and fail if face is too big
@@ -58,10 +109,10 @@ def do_convert(infile, outfile1, outfile2, model, classifier, smile_offset, imag
     else:
         print("face not too large: {}", max_extent)
 
-    # first encode image to vector
+    # read in aligned file to image array
     _, _, anchor_images = anchors_from_image(aligned_file, image_size=(image_size, image_size))
 
-    # classifiy
+    # classifiy aligned as smiling or not
     classifier_function = None
     if classifier != None:
         print('Compiling classifier function...')
@@ -75,6 +126,7 @@ def do_convert(infile, outfile1, outfile2, model, classifier, smile_offset, imag
     else:
         has_smile = random.choice([True, False])
 
+    # encode aligned image array as vector, apply offset
     anchor = get_image_vectors(model, anchor_images)
     if has_smile:
         print("Smile detected, removing")
@@ -88,43 +140,59 @@ def do_convert(infile, outfile1, outfile2, model, classifier, smile_offset, imag
     decoder_mlp, = selector.select('/decoder_mlp').bricks
     z_dim = decoder_mlp.input_dim
 
-    settings = [
-        [chosen_anchor, smile1_dir, outfile1]
-    ]
+    # TODO: fix variable renaming
+    anchors, samples_sequence_dir, movie_file = chosen_anchor, sequence_dir, outfile
 
-    for cur_setting in settings:
-        anchors, samples_sequence_dir, movie_file = cur_setting
+    # these are the output png files
+    samples_sequence_filename = samples_sequence_dir + generic_sequence
 
-        # these are the output png files
-        samples_sequence_filename = samples_sequence_dir + generic_sequence
+    # prepare output directory
+    make_or_cleanup(samples_sequence_dir)
 
-        # make output directory if it is not there
-        if not os.path.exists(samples_sequence_dir):
-            os.makedirs(samples_sequence_dir)
+    # generate latents from anchors
+    z_latents = compute_splash(rows=1, cols=offset_steps, dim=z_dim, space=offset_steps-1, anchors=anchors, spherical=True, gaussian=False)
+    samples_array = samples_from_latents(z_latents, model)
+    print("Samples array: ", samples_array.shape)
 
-        # and clean it out if it is there
-        filelist = [ f for f in os.listdir(samples_sequence_dir) if f.endswith(".png") ]
-        for f in filelist:
-            os.remove(os.path.join(samples_sequence_dir, f))
+    # save original file as-is
+    for i in range(initial_steps):
+        filename = samples_sequence_filename.format(1 + i)
+        imsave(filename, body_image_array)
+        print("original file: {}".format(filename))
 
-        # generate latents from anchors
-        z_latents = compute_splash(rows=1, cols=offset_steps, dim=z_dim, space=offset_steps-1, anchors=anchors, spherical=True, gaussian=False)
-        samples_array = samples_from_latents(z_latents, model)
+    # build face swapped reconstruction
+    sample = samples_array[0]
+    try:
+        face_image_array = (255 * np.dstack(sample)).astype(np.uint8)
+        face_landmarks = faceswap.get_landmarks(face_image_array)
+        faceswap.do_faceswap_from_face(infile, face_image_array, face_landmarks, recon_file)
+        print("recon file: {}".format(recon_file))
+        recon_array = imread(recon_file)
+    except faceswap.NoFaces:
+        print("faceswap: no faces in {}".format(infile))
+        return False, False
+    except faceswap.TooManyFaces:
+        print("faceswap: too many faces in {}".format(infile))
+        return False, False
 
-        # save original file as-is
-        for i in range(initial_steps):
-            filename = samples_sequence_filename.format(1 + i)
-            imsave(filename, body_image_array)
-            print("original file: {}".format(filename))
+    # now save interpolations to recon
+    for i in range(1,recon_steps):
+        frac_orig = ((recon_steps - i) / (1.0 * recon_steps))
+        frac_recon = (i / (1.0 * recon_steps))
+        interpolated_im = frac_orig * body_image_array + frac_recon * recon_array
+        filename = samples_sequence_filename.format(i+initial_steps)
+        imsave(filename, interpolated_im)
+        print("interpolated file: {}".format(filename))
 
-        # build face swapped reconstruction
-        sample = samples_array[0]
+    for i, sample in enumerate(samples_array):
         try:
+            cur_index = i + initial_steps + recon_steps
+            stack = np.dstack(sample)
             face_image_array = (255 * np.dstack(sample)).astype(np.uint8)
             face_landmarks = faceswap.get_landmarks(face_image_array)
-            faceswap.do_faceswap_from_face(infile, face_image_array, face_landmarks, recon_file)
-            print("recon file: {}".format(recon_file))
-            recon_array = imread(recon_file)
+            filename = samples_sequence_filename.format(cur_index)
+            faceswap.do_faceswap_from_face(infile, face_image_array, face_landmarks, filename)
+            print("generated file: {}".format(filename))
         except faceswap.NoFaces:
             print("faceswap: no faces in {}".format(infile))
             return False, False
@@ -132,57 +200,31 @@ def do_convert(infile, outfile1, outfile2, model, classifier, smile_offset, imag
             print("faceswap: too many faces in {}".format(infile))
             return False, False
 
-        # now save interpolations to recon
-        for i in range(1,recon_steps):
-            frac_orig = ((recon_steps - i) / (1.0 * recon_steps))
-            frac_recon = (i / (1.0 * recon_steps))
-            interpolated_im = frac_orig * body_image_array + frac_recon * recon_array
-            filename = samples_sequence_filename.format(i+initial_steps)
-            imsave(filename, interpolated_im)
-            print("interpolated file: {}".format(filename))
+    # copy last image back around to first
+    last_filename = samples_sequence_filename.format(initial_steps + recon_steps + offset_steps - 1)
+    first_filename = samples_sequence_filename.format(0)
+    print("wraparound file: {} -> {}".format(last_filename, first_filename))
+    copyfile(last_filename, first_filename)
+    copyfile(last_filename, final_image)
 
-        for i, sample in enumerate(samples_array):
-            try:
-                cur_index = i + initial_steps + recon_steps
-                stack = np.dstack(sample)
-                face_image_array = (255 * np.dstack(sample)).astype(np.uint8)
-                face_landmarks = faceswap.get_landmarks(face_image_array)
-                filename = samples_sequence_filename.format(cur_index)
-                faceswap.do_faceswap_from_face(infile, face_image_array, face_landmarks, filename)
-                print("generated file: {}".format(filename))
-            except faceswap.NoFaces:
-                print("faceswap: no faces in {}".format(infile))
-                return False, False
-            except faceswap.TooManyFaces:
-                print("faceswap: too many faces in {}".format(infile))
-                return False, False
-
-        # copy last image back around to first
-        last_filename = samples_sequence_filename.format(initial_steps + recon_steps + offset_steps - 1)
-        first_filename = samples_sequence_filename.format(0)
-        print("wraparound file: {} -> {}".format(last_filename, first_filename))
-        copyfile(last_filename, first_filename)
-
-        cur_ffmpeg_sequence = samples_sequence_dir + ffmpeg_sequence
-        if os.path.exists(movie_file):
-            os.remove(movie_file)
-        command = "/usr/local/bin/ffmpeg -r 20 -f image2 -i \"{}\" -c:v libx264 -crf 20 -pix_fmt yuv420p -tune fastdecode -y -tune zerolatency -profile:v baseline {}".format(cur_ffmpeg_sequence, movie_file)
-        print("COMMAND IS ", command)
-        result = os.system(command)
-        if result != 0:
-            return False, False
-        if not os.path.isfile(movie_file):
-            return False, False
+    if os.path.exists(movie_file):
+        os.remove(movie_file)
+    command = "/usr/local/bin/ffmpeg -r 20 -f image2 -i \"{}\" -c:v libx264 -crf 20 -pix_fmt yuv420p -tune fastdecode -y -tune zerolatency -profile:v baseline {}".format(ffmpeg_sequence_filename, movie_file)
+    print("ffmpeg command: {}".format(command))
+    result = os.system(command)
+    if result != 0:
+        return False, False
+    if not os.path.isfile(movie_file):
+        return False, False
 
     return True, has_smile
 
+# TODO: this could be smarter
 def check_status(r):
     if r.status_code < 200 or r.status_code > 299:
         print(r.status_code)
         print(r.text)
         sys.exit(1)
-#
-#
 
 if __name__ == "__main__":
     # argparse
@@ -190,8 +232,7 @@ if __name__ == "__main__":
     parser.add_argument('-a','--account', help='Account to follow', default="peopleschoice")
     parser.add_argument('-d','--debug', help='Debug: do not post', default=False, action='store_true')
     parser.add_argument('-o','--open', help='Open image (when in debug mode)', default=False, action='store_true')
-    parser.add_argument('-s','--single', help='Process only a single image', default=False, action='store_true')
-    parser.add_argument('-c','--creds', help='Twitter json credentials1 (smile)', default='forcedsmilebot.json')
+    parser.add_argument('-c','--creds', help='Twitter json credentials1 (smile)', default='creds.json')
     parser.add_argument('-n','--no-update', dest='no_update',
             help='Do not update postion on timeline', default=False, action='store_true')
     parser.add_argument("--model", dest='model', type=str, default=None,
@@ -225,22 +266,22 @@ if __name__ == "__main__":
     with open(args.creds) as data_file:
         creds = json.load(data_file)
 
-    auth1 = tweepy.OAuthHandler(creds["consumer_key"], creds["consumer_secret"])
-    auth1.set_access_token(creds["access_token"], creds["access_token_secret"])
-    api1 = tweepy.API(auth1)
+    auth = tweepy.OAuthHandler(creds["consumer_key"], creds["consumer_secret"])
+    auth.set_access_token(creds["access_token"], creds["access_token_secret"])
+    tweepy_api = tweepy.API(auth)
 
-    api_raw = TwitterAPI(creds["consumer_key"], creds["consumer_secret"], creds["access_token"], creds["access_token_secret"])
+    twitter_api = TwitterAPI(creds["consumer_key"], creds["consumer_secret"], creds["access_token"], creds["access_token_secret"])
 
     # ready to scrape the last 100 tweets
     if last_id is None:
         # just grab most recent tweet
-        stuff = api1.user_timeline(screen_name = args.account, \
+        stuff = tweepy_api.user_timeline(screen_name = args.account, \
             count = 100, \
             include_rts = False,
             exclude_replies = False)
     else:
         # look back up to 100 tweets since last one and then show next one
-        stuff = api1.user_timeline(screen_name = args.account, \
+        stuff = tweepy_api.user_timeline(screen_name = args.account, \
             count = 100, \
             since_id = last_id,
             include_rts = False,
@@ -251,12 +292,8 @@ if __name__ == "__main__":
         print("(nothing to do)")
         sys.exit(0)
 
-    # honor command line request to only process one file
-    if args.single:
-        stuff = [ stuff[-1] ]
-
     # will update this if we actually post so we can quit
-    have_posted = False
+    posted_id = None
 
     # success, update last known tweet_id
     if not args.no_update and len(stuff) > 0:
@@ -269,7 +306,7 @@ if __name__ == "__main__":
 
     # for item in reversed(stuff):
     cur_stuff = 0
-    while not have_posted and cur_stuff < len(stuff):
+    while posted_id is None and cur_stuff < len(stuff):
         item = stuff[cur_stuff]
         cur_stuff = cur_stuff + 1
         top = item._json
@@ -284,11 +321,11 @@ if __name__ == "__main__":
 
         path = urlparse.urlparse(media_url).path
         ext = os.path.splitext(path)[1]
-        local_media = "temp_files/media_file{}".format(ext)
-        final1_media = "temp_files/final1_file.mp4"
-        final2_media = "temp_files/final2_file.mp4"
+        downloaded_basename = "input_image{}".format(ext)
+        downloaded_input = "temp_files/{}".format(downloaded_basename)
+        final_movie = "temp_files/final_movie.mp4"
 
-        urllib.urlretrieve(media_url, local_media)
+        urllib.urlretrieve(media_url, downloaded_input)
 
         # first get model ready
         if model is None and args.model is not None:
@@ -306,33 +343,34 @@ if __name__ == "__main__":
             dim = len(offsets[0])
             smile_offset = offset_from_string("31", offsets, dim)
 
-        result = check_recent(local_media, recentfile)
+        result = check_recent(downloaded_input, recentfile)
         if result:
-            result, had_smile = do_convert(local_media, final1_media, final2_media, model, classifier, smile_offset, args.image_size)
+            result, had_smile = do_convert(downloaded_input, final_movie, model, classifier, smile_offset, args.image_size)
 
         if had_smile:
             post_text = u"😀⬇"
         else:
             post_text = u"😀⬆"
 
-        # update_text = u".@{} {}".format(args.account, text)
-        update_text = u"{}".format(text)
+        original_text = u"{}".format(text)
         if args.debug:
-            print(u"Update text: {}, Image1: {}, Image2: {}".format(update_text, final1_media, final2_media))
+            print(u"Update text: {}, Movie: {}".format(original_text, final_movie))
             if not result:
                 print("(Image conversation failed)")
                 if args.open:
-                    call(["open", local_media])
+                    call(["open", downloaded_input])
             else:
+                posted_id = "pid_{}".format(os.getpid())
+                respond_text = u"Reposted from: {}".format(link_url)
                 if args.open:
-                    call(["open", final_media])
+                    call(["open", final_movie])
         else:
             if result:
                 # https://github.com/geduldig/TwitterAPI/blob/master/examples/upload_video.py
                 bytes_sent = 0
-                total_bytes = os.path.getsize(final1_media)
-                file = open(final1_media, 'rb')
-                r = api_raw.request('media/upload', {'command':'INIT', 'media_type':'video/mp4', 'total_bytes':total_bytes})
+                total_bytes = os.path.getsize(final_movie)
+                file = open(final_movie, 'rb')
+                r = twitter_api.request('media/upload', {'command':'INIT', 'media_type':'video/mp4', 'total_bytes':total_bytes})
                 check_status(r)
 
                 media_id = r.json()['media_id']
@@ -340,56 +378,39 @@ if __name__ == "__main__":
 
                 while bytes_sent < total_bytes:
                   chunk = file.read(4*1024*1024)
-                  r = api_raw.request('media/upload', {'command':'APPEND', 'media_id':media_id, 'segment_index':segment_id}, {'media':chunk})
+                  r = twitter_api.request('media/upload', {'command':'APPEND', 'media_id':media_id, 'segment_index':segment_id}, {'media':chunk})
                   check_status(r)
                   segment_id = segment_id + 1
                   bytes_sent = file.tell()
                   print('[' + str(total_bytes) + ']', str(bytes_sent))
 
                 print("FINALIZING")
-                r = api_raw.request('media/upload', {'command':'FINALIZE', 'media_id':media_id})
+                r = twitter_api.request('media/upload', {'command':'FINALIZE', 'media_id':media_id})
                 check_status(r)
 
                 print("posting")
-                r = api_raw.request('statuses/update', {'status':post_text, 'media_ids':media_id})
+                r = twitter_api.request('statuses/update', {'status':post_text, 'media_ids':media_id})
                 check_status(r)
 
                 r_json = r.json()
-                # print("JSON: ", r_json)
+                # note - setting posted_id exits the loop
                 posted_id = r_json['id']
                 posted_name = r_json['user']['screen_name']
 
                 try:
-                    print(u"--> Posted: {} ({} -> {})".format(update_text, posted_name, posted_id))
+                    print(u"--> Posted: {} ({} -> {})".format(original_text, posted_name, posted_id))
                 except:
                     print("--> Something posted")
                 respond_text = u"@{} reposted from: {}".format(posted_name, link_url)
-                status = api1.update_status(status=respond_text, in_reply_to_status_id=posted_id)
-
-                # media_id1 = api1.media_upload(final1_media).media_id_string
-                # media_id2 = api2.media_upload(final2_media).media_id_string
-
-                # status = api2.update_status(status=empty_text, media_ids=[media_id2])
-                # posted_id = status.id
-                # posted_name = status.user.screen_name
-                # print(u"--> Posted: {} ({} -> {})".format(update_text, posted_name, posted_id))
-                # respond_text = u"@{} reposted from: {}".format(posted_name, link_url)
-                # status = api2.update_status(status=respond_text, in_reply_to_status_id=posted_id)
-
-                # status = api1.update_status(status=empty_text, media_ids=[media_id1])
-                # posted_id = status.id
-                # posted_name = status.user.screen_name
-                # print(u"--> Posted: {} ({} -> {})".format(update_text, posted_name, posted_id))
-                # respond_text = u"@{} reposted from: {}".format(posted_name, link_url)
-                # status = api1.update_status(status=respond_text, in_reply_to_status_id=posted_id)
-
-                have_posted = True
+                status = tweepy_api.update_status(status=respond_text, in_reply_to_status_id=posted_id)
             else:
                 try:
-                    print(u"--> Skipped: {}".format(update_text))
+                    print(u"--> Skipped: {}".format(original_text))
                 except:
                     print("--> Something skipped")
 
-        if have_posted and not args.no_update:
-            add_to_recent(local_media, recentfile)
+        if posted_id is not None and not args.no_update:
+            add_to_recent(downloaded_input, recentfile)
+            if posted_id is not None:
+                archive_post(posted_id, original_text, post_text, respond_text, downloaded_basename, downloaded_input, final_movie)
 
