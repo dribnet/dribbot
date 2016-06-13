@@ -27,12 +27,39 @@ import numpy as np
 from PIL import Image
 from scipy.misc import imread, imsave
 import theano
+import hashlib
 
+# returns True if file not found and can be processed
 def check_recent(infile, recentfile):
-    return True
+    try:
+        with open(recentfile) as f :
+            content = f.readlines()
+    except EnvironmentError: # parent of IOError, OSError
+        # that's ok
+        print("No cache of recent files not found ({}), will create".format(recentfile))
+        return True
 
-def add_to_recent(infile, recentfile, limit=48):
-    return True
+    md5hash = hashlib.md5(open(infile, 'rb').read()).hexdigest().encode('utf-8')
+    known_hashes = [line.split('\t', 1)[0] for line in content]
+    if md5hash in known_hashes:
+        return False
+    else:
+        return True
+
+def add_to_recent(infile, comment, recentfile, limit=100):
+    try:
+        with open(recentfile) as f :
+            content = f.readlines()
+    except EnvironmentError: # parent of IOError, OSError
+        content = []
+
+    md5hash = hashlib.md5(open(infile, 'rb').read()).hexdigest().encode('utf-8')
+    newitem = u"{}\t{}\n".format(md5hash, comment.encode('utf-8'))
+    content.insert(0, newitem)
+    content = content[:limit]
+
+    with open(recentfile, "w") as f:
+        f.writelines(content)
 
 max_allowable_extent = 140
 # the input image file is algined and saved
@@ -81,10 +108,10 @@ def archive_post(posted_id, original_text, post_text, respond_text, downloaded_b
 
     # save metadata
     with open(archive_text_path, 'a') as the_file:
-        the_file.write(u"posted_id\n{}\n".format(posted_id))
-        the_file.write(u"original_text\n{}\n".format(original_text))
+        the_file.write(u' '.join([u"posted_id", str(posted_id)]).encode('utf-8').strip())
+        the_file.write(u' '.join([u"original_text", original_text]).encode('utf-8').strip())
         the_file.write(u' '.join([u"post_text", post_text]).encode('utf-8').strip())
-        the_file.write(u"respond_text\n{}\n".format(respond_text))
+        the_file.write(u' '.join([u"respond_text", respond_text]).encode('utf-8').strip())
 
     # save input, a few working files, outputs
     copyfile(downloaded_input, archive_input_path)
@@ -104,10 +131,10 @@ def do_convert(infile, outfile, model, classifier, smile_offset, image_size, ini
     body_landmarks = faceswap.get_landmarks(body_image_array)
     max_extent = faceswap.get_max_extent(body_landmarks)
     if (max_extent > max_allowable_extent):
-        print("face to large: {}", max_extent)
+        print("face to large: {}".format(max_extent))
         return False, False
     else:
-        print("face not too large: {}", max_extent)
+        print("face not too large: {}".format(max_extent))
 
     # read in aligned file to image array
     _, _, anchor_images = anchors_from_image(aligned_file, image_size=(image_size, image_size))
@@ -122,7 +149,7 @@ def do_convert(infile, outfile, model, classifier, smile_offset, image_size, ini
         has_smile = False
         if(yn[0][31] >= 0.5):
             has_smile = True
-        print("RESULT 31=smile", yn[0][31], has_smile)
+        print("Smile detector:", yn[0][31], has_smile)
     else:
         has_smile = random.choice([True, False])
 
@@ -222,6 +249,7 @@ def do_convert(infile, outfile, model, classifier, smile_offset, image_size, ini
 # TODO: this could be smarter
 def check_status(r):
     if r.status_code < 200 or r.status_code > 299:
+        print("---> TWIITER API FAIL <---")
         print(r.status_code)
         print(r.text)
         sys.exit(1)
@@ -252,15 +280,15 @@ if __name__ == "__main__":
 
     # state tracking files from run to run
     tempfile = "temp_files/{}_follow_account_lastid.txt".format(args.account)
-    recentfile = "temp_files/{}_recent_posts_hashrecentes.txt".format(args.account)
+    recentfile = "temp_files/{}_recent_posts.txt".format(args.account)
 
     # try to recover last known tweet_id (if fails, last_id will stay None)
     last_id = None
-    try:
-        f = open(tempfile).read()
-        last_id = int(f)
-    except IOError:
-        pass
+    # try:
+    #     f = open(tempfile).read()
+    #     last_id = int(f)
+    # except IOError:
+    #     pass
 
     # now fire up tweepy
     with open(args.creds) as data_file:
@@ -325,38 +353,41 @@ if __name__ == "__main__":
         downloaded_input = "temp_files/{}".format(downloaded_basename)
         final_movie = "temp_files/final_movie.mp4"
 
+        print("Downloading {} as {}".format(media_url, downloaded_input))
         urllib.urlretrieve(media_url, downloaded_input)
 
-        # first get model ready
-        if model is None and args.model is not None:
-            print('Loading saved model...')
-            model = Model(load(args.model).algorithm.cost)
-
-        # first get model ready
-        if classifier is None and args.classifier is not None:
-            print('Loading saved classifier...')
-            classifier = create_running_graphs(args.classifier)
-
-        # get attributes
-        if smile_offset is None and args.anchor_offset is not None:
-            offsets = get_json_vectors(args.anchor_offset)
-            dim = len(offsets[0])
-            smile_offset = offset_from_string("31", offsets, dim)
-
+        post_text = u"no post"
         result = check_recent(downloaded_input, recentfile)
-        if result:
-            result, had_smile = do_convert(downloaded_input, final_movie, model, classifier, smile_offset, args.image_size)
-
-        if had_smile:
-            post_text = u"😀⬇"
+        if result is False:
+            print "Image found in recent cache, skipping"
         else:
-            post_text = u"😀⬆"
+            # first get model ready
+            if model is None and args.model is not None:
+                print('Loading saved model...')
+                model = Model(load(args.model).algorithm.cost)
+
+            # first get model ready
+            if classifier is None and args.classifier is not None:
+                print('Loading saved classifier...')
+                classifier = create_running_graphs(args.classifier)
+
+            # get attributes
+            if smile_offset is None and args.anchor_offset is not None:
+                offsets = get_json_vectors(args.anchor_offset)
+                dim = len(offsets[0])
+                smile_offset = offset_from_string("31", offsets, dim)
+
+            result, had_smile = do_convert(downloaded_input, final_movie, model, classifier, smile_offset, args.image_size)
+            if had_smile:
+                post_text = u"😀⬇"
+            else:
+                post_text = u"😀⬆"
 
         original_text = u"{}".format(text)
         if args.debug:
             print(u"Update text: {}, Movie: {}".format(original_text, final_movie))
             if not result:
-                print("(Image conversation failed)")
+                print("Not processed")
                 if args.open:
                     call(["open", downloaded_input])
             else:
@@ -384,11 +415,11 @@ if __name__ == "__main__":
                   bytes_sent = file.tell()
                   print('[' + str(total_bytes) + ']', str(bytes_sent))
 
-                print("FINALIZING")
+                print("finalizing movie upload")
                 r = twitter_api.request('media/upload', {'command':'FINALIZE', 'media_id':media_id})
                 check_status(r)
 
-                print("posting")
+                print("sending status update")
                 r = twitter_api.request('statuses/update', {'status':post_text, 'media_ids':media_id})
                 check_status(r)
 
@@ -398,9 +429,9 @@ if __name__ == "__main__":
                 posted_name = r_json['user']['screen_name']
 
                 try:
-                    print(u"--> Posted: {} ({} -> {})".format(original_text, posted_name, posted_id))
+                    print(u"--> Updated: {} ({} -> {})".format(original_text, posted_name, posted_id))
                 except:
-                    print("--> Something posted")
+                    print("--> Something updated")
                 respond_text = u"@{} reposted from: {}".format(posted_name, link_url)
                 status = tweepy_api.update_status(status=respond_text, in_reply_to_status_id=posted_id)
             else:
@@ -410,7 +441,11 @@ if __name__ == "__main__":
                     print("--> Something skipped")
 
         if posted_id is not None and not args.no_update:
-            add_to_recent(downloaded_input, recentfile)
+            print("updating state and archiving")
+            add_to_recent(downloaded_input, original_text, recentfile)
             if posted_id is not None:
                 archive_post(posted_id, original_text, post_text, respond_text, downloaded_basename, downloaded_input, final_movie)
+        else:
+            print("(update skipped)")
+
 
