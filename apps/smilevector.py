@@ -47,21 +47,25 @@ def check_recent(infile, recentfile):
         return True
 
 def add_to_recent(infile, comment, recentfile, limit=100):
+    if os.path.isfile(recentfile):
+        copyfile(recentfile, "{}.bak".format(recentfile))
+
     try:
         with open(recentfile) as f :
             content = f.readlines()
     except EnvironmentError: # parent of IOError, OSError
         content = []
 
-    md5hash = hashlib.md5(open(infile, 'rb').read()).hexdigest().encode('utf-8')
-    newitem = u"{}\t{}\n".format(md5hash, comment.encode('utf-8'))
+    md5hash = hashlib.md5(open(infile, 'rb').read()).hexdigest()
+    newitem = u"{}\t{}\n".format(md5hash, comment)
     content.insert(0, newitem)
     content = content[:limit]
 
     with open(recentfile, "w") as f:
         f.writelines(content)
 
-max_allowable_extent = 140
+max_allowable_extent = 180
+min_allowable_extent = 60
 # the input image file is algined and saved
 aligned_file = "temp_files/aligned_file.png"
 # the reconstruction is also saved
@@ -132,6 +136,9 @@ def do_convert(infile, outfile, model, classifier, smile_offset, image_size, ini
     max_extent = faceswap.get_max_extent(body_landmarks)
     if (max_extent > max_allowable_extent):
         print("face to large: {}".format(max_extent))
+        return False, False
+    elif (max_extent < min_allowable_extent):
+        print("face to small: {}".format(max_extent))
         return False, False
     else:
         print("face not too large: {}".format(max_extent))
@@ -279,16 +286,7 @@ if __name__ == "__main__":
     smile_offset = None
 
     # state tracking files from run to run
-    tempfile = "temp_files/{}_follow_account_lastid.txt".format(args.account)
-    recentfile = "temp_files/{}_recent_posts.txt".format(args.account)
-
-    # try to recover last known tweet_id (if fails, last_id will stay None)
-    last_id = None
-    # try:
-    #     f = open(tempfile).read()
-    #     last_id = int(f)
-    # except IOError:
-    #     pass
+    recentfile = "temp_files/recent_posts.txt"
 
     # now fire up tweepy
     with open(args.creds) as data_file:
@@ -300,20 +298,11 @@ if __name__ == "__main__":
 
     twitter_api = TwitterAPI(creds["consumer_key"], creds["consumer_secret"], creds["access_token"], creds["access_token_secret"])
 
-    # ready to scrape the last 100 tweets
-    if last_id is None:
-        # just grab most recent tweet
-        stuff = tweepy_api.user_timeline(screen_name = args.account, \
-            count = 100, \
-            include_rts = False,
-            exclude_replies = False)
-    else:
-        # look back up to 100 tweets since last one and then show next one
-        stuff = tweepy_api.user_timeline(screen_name = args.account, \
-            count = 100, \
-            since_id = last_id,
-            include_rts = False,
-            exclude_replies = False)
+    # just grab most recent tweet
+    stuff = tweepy_api.user_timeline(screen_name = args.account, \
+        count = 100, \
+        include_rts = False,
+        exclude_replies = False)
 
     # make sure there is a result or quit
     if len(stuff) == 0:
@@ -322,15 +311,6 @@ if __name__ == "__main__":
 
     # will update this if we actually post so we can quit
     posted_id = None
-
-    # success, update last known tweet_id
-    if not args.no_update and len(stuff) > 0:
-        last_item = stuff[0]._json
-        last_tweet_id = last_item["id"]
-        if os.path.isfile(tempfile):
-            copyfile(tempfile, "{}.bak".format(tempfile))
-        with open(tempfile, 'w') as f:
-          f.write("{}\n".format(last_tweet_id))
 
     # for item in reversed(stuff):
     cur_stuff = 0
@@ -356,6 +336,7 @@ if __name__ == "__main__":
         print("Downloading {} as {}".format(media_url, downloaded_input))
         urllib.urlretrieve(media_url, downloaded_input)
 
+        original_text = text.encode('ascii', 'ignore')
         post_text = u"no post"
         result = check_recent(downloaded_input, recentfile)
         if result is False:
@@ -383,7 +364,6 @@ if __name__ == "__main__":
             else:
                 post_text = u"😀⬆"
 
-        original_text = u"{}".format(text)
         if args.debug:
             print(u"Update text: {}, Movie: {}".format(original_text, final_movie))
             if not result:
