@@ -28,6 +28,7 @@ from PIL import Image
 from scipy.misc import imread, imsave
 import theano
 import hashlib
+import time
 
 # returns True if file not found and can be processed
 def check_recent(infile, recentfile):
@@ -97,9 +98,9 @@ archive_recon = "reconstruction.png"
 archive_final_image = "final_image.png"
 archive_final_movie = "final_movie.mp4"
 
-def archive_post(posted_id, original_text, post_text, respond_text, downloaded_basename, downloaded_input, final_movie):
+def archive_post(subdir, posted_id, original_text, post_text, respond_text, downloaded_basename, downloaded_input, final_movie):
     # setup paths
-    archive_dir = "archives/{}".format(posted_id)
+    archive_dir = "archives/{}".format(subdir)
     archive_input_path = "{}/{}".format(archive_dir, downloaded_basename)
     archive_text_path = "{}/{}".format(archive_dir, archive_text)
     archive_aligned_path = "{}/{}".format(archive_dir, archive_aligned)
@@ -111,11 +112,15 @@ def archive_post(posted_id, original_text, post_text, respond_text, downloaded_b
     make_or_cleanup(archive_dir)
 
     # save metadata
-    with open(archive_text_path, 'a') as the_file:
-        the_file.write(u' '.join([u"posted_id", str(posted_id)]).encode('utf-8').strip())
-        the_file.write(u' '.join([u"original_text", original_text]).encode('utf-8').strip())
-        the_file.write(u' '.join([u"post_text", post_text]).encode('utf-8').strip())
-        the_file.write(u' '.join([u"respond_text", respond_text]).encode('utf-8').strip())
+    with open(archive_text_path, 'a') as f:
+        f.write(u"posted_id\t{}\n".format(posted_id))
+        f.write(u"original_text\t{}\n".format(original_text))
+        # these might be unicode. what a PITA
+        f.write(u'\t'.join([u"post_text", post_text]).encode('utf-8').strip())
+        f.write(u"\n")
+        f.write(u'\t'.join([u"respond_text", respond_text]).encode('utf-8').strip())
+        f.write(u"\n")
+        f.write(u"subdir\t{}\n".format(subdir))
 
     # save input, a few working files, outputs
     copyfile(downloaded_input, archive_input_path)
@@ -131,9 +136,16 @@ def do_convert(infile, outfile, model, classifier, smile_offset, image_size, ini
         return False, False
 
     # go ahead and cache the main (body) image and landmarks, and fail if face is too big
-    body_image_array = imread(infile)
-    body_landmarks = faceswap.get_landmarks(body_image_array)
-    max_extent = faceswap.get_max_extent(body_landmarks)
+    try:
+        body_image_array = imread(infile)
+        body_landmarks = faceswap.get_landmarks(body_image_array)
+        max_extent = faceswap.get_max_extent(body_landmarks)
+    except faceswap.NoFaces:
+        print("faceswap: no faces in {}".format(infile))
+        return False, False
+    except faceswap.TooManyFaces:
+        print("faceswap: too many faces in {}".format(infile))
+        return False, False
     if (max_extent > max_allowable_extent):
         print("face to large: {}".format(max_extent))
         return False, False
@@ -253,13 +265,16 @@ def do_convert(infile, outfile, model, classifier, smile_offset, image_size, ini
 
     return True, has_smile
 
-# TODO: this could be smarter
+# throws exeption if things don't go well
+class TwitterAPIFail(Exception):
+    pass
+
 def check_status(r):
     if r.status_code < 200 or r.status_code > 299:
         print("---> TWIITER API FAIL <---")
         print(r.status_code)
         print(r.text)
-        sys.exit(1)
+        raise TwitterAPIFail
 
 if __name__ == "__main__":
     # argparse
@@ -378,53 +393,65 @@ if __name__ == "__main__":
         else:
             if result:
                 # https://github.com/geduldig/TwitterAPI/blob/master/examples/upload_video.py
-                bytes_sent = 0
-                total_bytes = os.path.getsize(final_movie)
-                file = open(final_movie, 'rb')
-                r = twitter_api.request('media/upload', {'command':'INIT', 'media_type':'video/mp4', 'total_bytes':total_bytes})
-                check_status(r)
+                num_upload_failures = 0
+                upload_failure_retry_delay = 30
+                max_upload_failures = 10
+                update_response = None
 
-                media_id = r.json()['media_id']
-                segment_id = 0
+                while update_response is None:
+                    try:
+                        bytes_sent = 0
+                        total_bytes = os.path.getsize(final_movie)
+                        file = open(final_movie, 'rb')
+                        r = twitter_api.request('media/upload', {'command':'INIT', 'media_type':'video/mp4', 'total_bytes':total_bytes})
+                        check_status(r)
 
-                while bytes_sent < total_bytes:
-                  chunk = file.read(4*1024*1024)
-                  r = twitter_api.request('media/upload', {'command':'APPEND', 'media_id':media_id, 'segment_index':segment_id}, {'media':chunk})
-                  check_status(r)
-                  segment_id = segment_id + 1
-                  bytes_sent = file.tell()
-                  print('[' + str(total_bytes) + ']', str(bytes_sent))
+                        media_id = r.json()['media_id']
+                        segment_id = 0
 
-                print("finalizing movie upload")
-                r = twitter_api.request('media/upload', {'command':'FINALIZE', 'media_id':media_id})
-                check_status(r)
+                        while bytes_sent < total_bytes:
+                          chunk = file.read(4*1024*1024)
+                          r = twitter_api.request('media/upload', {'command':'APPEND', 'media_id':media_id, 'segment_index':segment_id}, {'media':chunk})
+                          check_status(r)
+                          segment_id = segment_id + 1
+                          bytes_sent = file.tell()
+                          print('[' + str(total_bytes) + ']', str(bytes_sent))
 
-                print("sending status update")
-                r = twitter_api.request('statuses/update', {'status':post_text, 'media_ids':media_id})
-                check_status(r)
+                        print("finalizing movie upload")
+                        r = twitter_api.request('media/upload', {'command':'FINALIZE', 'media_id':media_id})
+                        check_status(r)
 
-                r_json = r.json()
+                        print("sending status update")
+                        r = twitter_api.request('statuses/update', {'status':post_text, 'media_ids':media_id})
+                        check_status(r)
+
+                        update_response = r
+                    except TwitterAPIFail:
+                        num_upload_failures = num_upload_failures + 1
+                        if num_upload_failures >= max_upload_failures:
+                            print("----> TWITTER FAILED {} TIMES, exiting".format(num_upload_failures))
+                            exit(1)
+                        print("----> TWITTER FAIL #{}: waiting {} seconds and will retry".format(num_upload_failures, upload_failure_retry_delay))
+                        time.sleep(upload_failure_retry_delay)
+
+
+                r_json = update_response.json()
                 # note - setting posted_id exits the loop
                 posted_id = r_json['id']
                 posted_name = r_json['user']['screen_name']
 
-                try:
-                    print(u"--> Updated: {} ({} -> {})".format(original_text, posted_name, posted_id))
-                except:
-                    print("--> Something updated")
+                print(u"--> Updated: {} ({} -> {})".format(original_text, posted_name, posted_id))
                 respond_text = u"@{} reposted from: {}".format(posted_name, link_url)
                 status = tweepy_api.update_status(status=respond_text, in_reply_to_status_id=posted_id)
             else:
-                try:
-                    print(u"--> Skipped: {}".format(original_text))
-                except:
-                    print("--> Something skipped")
+                print(u"--> Skipped: {}".format(original_text))
 
         if posted_id is not None and not args.no_update:
             print("updating state and archiving")
             add_to_recent(downloaded_input, original_text, recentfile)
             if posted_id is not None:
-                archive_post(posted_id, original_text, post_text, respond_text, downloaded_basename, downloaded_input, final_movie)
+                subdir = time.strftime("%Y%m%d_%H%M%S")
+                archive_post(subdir, posted_id, original_text, post_text, respond_text, downloaded_basename, downloaded_input, final_movie)
         else:
             print("(update skipped)")
 
