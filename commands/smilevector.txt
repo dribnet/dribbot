@@ -1,3 +1,14 @@
+=== current debug
+
+THEANORC=theanorc.mine PYTHONPATH=../faceswap:../discgen /usr/local/anaconda/bin/python \
+    apps/smilevector.py -d \
+    --image-size 256 \
+    --classifier ../discgen/classifiers/celeba_dlib_256_02.zip \
+    --model ../discgen/outputs/celeba_dlib_256a_400z_d05/celeba_dlib_256a_400z_d05_e8.zip \
+    --anchor-offset ../discgen/outputs/celeba_dlib_256a_400z_d05/celeba_dlib_256a_400z_d05_e8_train_atvecs2.json
+
+=== older commands
+
 PYTHONPATH=../faceswap python apps/smilevector.py -dn
 
 PYTHONPATH=../faceswap:../discgen python apps/smilevector.py -dn \
@@ -27,13 +38,6 @@ THEANORC=theanorc.mine PYTHONPATH=../faceswap:../discgen /usr/local/anaconda/bin
     --creds1 creds.json --creds2 creds.json \
     --image-size 256 \
     --model=../discgen/outputs/celeba_dlib_256a_400z_d05/celeba_dlib_256a_400z_d05_e8.zip \
-    --anchor-offset ../discgen/outputs/celeba_dlib_256a_400z_d05/celeba_dlib_256a_400z_d05_e8_train_atvecs2.json
-
-THEANORC=theanorc.mine PYTHONPATH=../faceswap:../discgen /usr/local/anaconda/bin/python \
-    apps/smilevector.py \
-    --image-size 256 \
-    --classifier ../discgen/classifiers/celeba_dlib_256_02.zip \
-    --model ../discgen/outputs/celeba_dlib_256a_400z_d05/celeba_dlib_256a_400z_d05_e8.zip \
     --anchor-offset ../discgen/outputs/celeba_dlib_256a_400z_d05/celeba_dlib_256a_400z_d05_e8_train_atvecs2.json
 
 ffmpeg -r 30 -f image2 -i "temp_files/smile1_seq/%3d.png" \

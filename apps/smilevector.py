@@ -71,6 +71,8 @@ min_allowable_extent = 60
 aligned_file = "temp_files/aligned_file.png"
 # the reconstruction is also saved
 recon_file = "temp_files/recon_file.png"
+# used to save surprising failures
+debug_file = "temp_files/debug.png"
 # this is the final swapped image
 final_image = "temp_files/final_image.png"
 # the interpolated sequence is saved into this directory
@@ -129,7 +131,7 @@ def archive_post(subdir, posted_id, original_text, post_text, respond_text, down
     copyfile(final_image, archive_final_iamge_path)
     copyfile(final_movie, archive_final_movie_path)
 
-def do_convert(infile, outfile, model, classifier, smile_offset, image_size, initial_steps=10, recon_steps=10, offset_steps=20):
+def do_convert(infile, outfile, model, classifier, smile_offset, image_size, initial_steps=10, recon_steps=10, offset_steps=20, end_bumper_steps=10):
 
     # first align input face to canonical alignment and save result
     if not doalign.align_face(infile, aligned_file, image_size):
@@ -215,7 +217,8 @@ def do_convert(infile, outfile, model, classifier, smile_offset, image_size, ini
         print("recon file: {}".format(recon_file))
         recon_array = imread(recon_file)
     except faceswap.NoFaces:
-        print("faceswap: no faces in {}".format(infile))
+        print("faceswap: no faces when generating recon file {}".format(infile))
+        imsave(debug_file, face_image_array)
         return False, False
     except faceswap.TooManyFaces:
         print("faceswap: too many faces in {}".format(infile))
@@ -247,11 +250,18 @@ def do_convert(infile, outfile, model, classifier, smile_offset, image_size, ini
             return False, False
 
     # copy last image back around to first
-    last_filename = samples_sequence_filename.format(initial_steps + recon_steps + offset_steps - 1)
+    last_sequence_index = initial_steps + recon_steps + offset_steps - 1
+    last_filename = samples_sequence_filename.format(last_sequence_index)
     first_filename = samples_sequence_filename.format(0)
     print("wraparound file: {} -> {}".format(last_filename, first_filename))
     copyfile(last_filename, first_filename)
     copyfile(last_filename, final_image)
+
+    # also add a final out bumper
+    for i in range(last_sequence_index, last_sequence_index + end_bumper_steps):
+        filename = samples_sequence_filename.format(i + 1)
+        copyfile(last_filename, filename)
+        print("end bumper file: {}".format(filename))
 
     if os.path.exists(movie_file):
         os.remove(movie_file)
