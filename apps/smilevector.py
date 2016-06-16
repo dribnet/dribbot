@@ -71,6 +71,8 @@ min_allowable_extent = 60
 aligned_file = "temp_files/aligned_file.png"
 # the reconstruction is also saved
 recon_file = "temp_files/recon_file.png"
+# reconstruction is swapped into original
+swapped_file = "temp_files/swapped_file.png"
 # used to save surprising failures
 debug_file = "temp_files/debug.png"
 # this is the final swapped image
@@ -97,6 +99,7 @@ def make_or_cleanup(local_dir):
 archive_text = "metadata.txt"
 archive_aligned = "aligned.png"
 archive_recon = "reconstruction.png"
+archive_swapped = "swapped.png"
 archive_final_image = "final_image.png"
 archive_final_movie = "final_movie.mp4"
 
@@ -107,7 +110,8 @@ def archive_post(subdir, posted_id, original_text, post_text, respond_text, down
     archive_text_path = "{}/{}".format(archive_dir, archive_text)
     archive_aligned_path = "{}/{}".format(archive_dir, archive_aligned)
     archive_recon_path = "{}/{}".format(archive_dir, archive_recon)
-    archive_final_iamge_path = "{}/{}".format(archive_dir, archive_final_image)
+    archive_swapped_path = "{}/{}".format(archive_dir, archive_swapped)
+    archive_final_image_path = "{}/{}".format(archive_dir, archive_final_image)
     archive_final_movie_path = "{}/{}".format(archive_dir, archive_final_movie)
 
     # prepare output directory
@@ -126,9 +130,10 @@ def archive_post(subdir, posted_id, original_text, post_text, respond_text, down
 
     # save input, a few working files, outputs
     copyfile(downloaded_input, archive_input_path)
-    copyfile(aligned_file, archive_aligned)
+    copyfile(aligned_file, archive_aligned_path)
     copyfile(recon_file, archive_recon_path)
-    copyfile(final_image, archive_final_iamge_path)
+    copyfile(swapped_file, archive_swapped_path)
+    copyfile(final_image, archive_final_image_path)
     copyfile(final_movie, archive_final_movie_path)
 
 def do_convert(infile, outfile, model, classifier, smile_offset, image_size, initial_steps=10, recon_steps=10, offset_steps=20, end_bumper_steps=10):
@@ -165,7 +170,7 @@ def do_convert(infile, outfile, model, classifier, smile_offset, image_size, ini
     if classifier != None:
         print('Compiling classifier function...')
         classifier_function = theano.function(classifier.inputs, classifier.outputs)
-        yhat = classifier_function(anchor_images[0].reshape(1,3,256,256))
+        yhat = classifier_function(anchor_images[0].reshape(1,3,image_size,image_size))
         yn = np.array(yhat[0])
         has_smile = False
         if(yn[0][31] >= 0.5):
@@ -212,12 +217,13 @@ def do_convert(infile, outfile, model, classifier, smile_offset, image_size, ini
     sample = samples_array[0]
     try:
         face_image_array = (255 * np.dstack(sample)).astype(np.uint8)
+        imsave(recon_file, face_image_array)
         face_landmarks = faceswap.get_landmarks(face_image_array)
-        faceswap.do_faceswap_from_face(infile, face_image_array, face_landmarks, recon_file)
-        print("recon file: {}".format(recon_file))
-        recon_array = imread(recon_file)
+        faceswap.do_faceswap_from_face(infile, face_image_array, face_landmarks, swapped_file)
+        print("swapped file: {}".format(swapped_file))
+        recon_array = imread(swapped_file)
     except faceswap.NoFaces:
-        print("faceswap: no faces when generating recon file {}".format(infile))
+        print("faceswap: no faces when generating swapped file {}".format(infile))
         imsave(debug_file, face_image_array)
         return False, False
     except faceswap.TooManyFaces:
