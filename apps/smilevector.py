@@ -47,7 +47,7 @@ def check_recent(infile, recentfile):
     else:
         return True
 
-def add_to_recent(infile, comment, recentfile, limit=100):
+def add_to_recent(infile, comment, recentfile, limit=200):
     if os.path.isfile(recentfile):
         copyfile(recentfile, "{}.bak".format(recentfile))
 
@@ -103,9 +103,9 @@ archive_swapped = "swapped.png"
 archive_final_image = "final_image.png"
 archive_final_movie = "final_movie.mp4"
 
-def archive_post(subdir, posted_id, original_text, post_text, respond_text, downloaded_basename, downloaded_input, final_movie):
+def archive_post(subdir, posted_id, original_text, post_text, respond_text, downloaded_basename, downloaded_input, final_movie, archive_dir="archives"):
     # setup paths
-    archive_dir = "archives/{}".format(subdir)
+    archive_dir = "{}/{}".format(archive_dir, subdir)
     archive_input_path = "{}/{}".format(archive_dir, downloaded_basename)
     archive_text_path = "{}/{}".format(archive_dir, archive_text)
     archive_aligned_path = "{}/{}".format(archive_dir, archive_aligned)
@@ -136,7 +136,7 @@ def archive_post(subdir, posted_id, original_text, post_text, respond_text, down
     copyfile(final_image, archive_final_image_path)
     copyfile(final_movie, archive_final_movie_path)
 
-def do_convert(infile, outfile, model, classifier, smile_offset, image_size, initial_steps=10, recon_steps=10, offset_steps=20, end_bumper_steps=10):
+def do_convert(infile, outfile, model, classifier, smile_offset, image_size, initial_steps=10, recon_steps=10, offset_steps=20, end_bumper_steps=10, check_extent=True):
 
     # first align input face to canonical alignment and save result
     if not doalign.align_face(infile, aligned_file, image_size):
@@ -153,10 +153,10 @@ def do_convert(infile, outfile, model, classifier, smile_offset, image_size, ini
     except faceswap.TooManyFaces:
         print("faceswap: too many faces in {}".format(infile))
         return False, False
-    if (max_extent > max_allowable_extent):
+    if check_extent and max_extent > max_allowable_extent:
         print("face to large: {}".format(max_extent))
         return False, False
-    elif (max_extent < min_allowable_extent):
+    elif check_extent and max_extent < min_allowable_extent:
         print("face to small: {}".format(max_extent))
         return False, False
     else:
@@ -292,6 +292,25 @@ def check_status(r):
         print(r.text)
         raise TwitterAPIFail
 
+def check_lazy_initialize(args, model, classifier, smile_offset):
+    # first get model ready
+    if model is None and args.model is not None:
+        print('Loading saved model...')
+        model = Model(load(args.model).algorithm.cost)
+
+    # first get model ready
+    if classifier is None and args.classifier is not None:
+        print('Loading saved classifier...')
+        classifier = create_running_graphs(args.classifier)
+
+    # get attributes
+    if smile_offset is None and args.anchor_offset is not None:
+        offsets = get_json_vectors(args.anchor_offset)
+        dim = len(offsets[0])
+        smile_offset = offset_from_string("31", offsets, dim)
+
+    return model, classifier, smile_offset
+
 if __name__ == "__main__":
     # argparse
     parser = argparse.ArgumentParser(description='Follow account and repost munged images')
@@ -301,6 +320,8 @@ if __name__ == "__main__":
     parser.add_argument('-c','--creds', help='Twitter json credentials1 (smile)', default='creds.json')
     parser.add_argument('-n','--no-update', dest='no_update',
             help='Do not update postion on timeline', default=False, action='store_true')
+    parser.add_argument("--input-file", dest='input_file', default=None,
+                        help="single image file input (for debugging)")
     parser.add_argument("--model", dest='model', type=str, default=None,
                         help="path to the saved model")
     parser.add_argument('--anchor-offset', dest='anchor_offset', default=None,
@@ -315,6 +336,19 @@ if __name__ == "__main__":
     model = None
     classifier = None
     smile_offset = None
+
+    final_movie = "temp_files/final_movie.mp4"
+
+    # do debug as a special case
+    if args.input_file:
+        model, classifier, smile_offset = check_lazy_initialize(args, model, classifier, smile_offset)
+        result, had_smile = do_convert(args.input_file, final_movie, model, classifier, smile_offset, args.image_size, check_extent=False)
+        print("result: {}, had_smile: {}".format(result, had_smile))
+        if result and not args.no_update:
+            input_basename = os.path.basename(args.input_file)
+            subdir = time.strftime("%Y%m%d_%H%M%S")
+            archive_post(subdir, "no_id", had_smile, "no_post", "no_respond", input_basename, args.input_file, final_movie, "debug")
+        exit(0)
 
     # state tracking files from run to run
     recentfile = "temp_files/recent_posts.txt"
@@ -331,7 +365,7 @@ if __name__ == "__main__":
 
     # just grab most recent tweet
     stuff = tweepy_api.user_timeline(screen_name = args.account, \
-        count = 100, \
+        count = 200, \
         include_rts = False,
         exclude_replies = False)
 
@@ -362,7 +396,6 @@ if __name__ == "__main__":
         ext = os.path.splitext(path)[1]
         downloaded_basename = "input_image{}".format(ext)
         downloaded_input = "temp_files/{}".format(downloaded_basename)
-        final_movie = "temp_files/final_movie.mp4"
 
         print("Downloading {} as {}".format(media_url, downloaded_input))
         urllib.urlretrieve(media_url, downloaded_input)
@@ -373,21 +406,7 @@ if __name__ == "__main__":
         if result is False:
             print "Image found in recent cache, skipping"
         else:
-            # first get model ready
-            if model is None and args.model is not None:
-                print('Loading saved model...')
-                model = Model(load(args.model).algorithm.cost)
-
-            # first get model ready
-            if classifier is None and args.classifier is not None:
-                print('Loading saved classifier...')
-                classifier = create_running_graphs(args.classifier)
-
-            # get attributes
-            if smile_offset is None and args.anchor_offset is not None:
-                offsets = get_json_vectors(args.anchor_offset)
-                dim = len(offsets[0])
-                smile_offset = offset_from_string("31", offsets, dim)
+            model, classifier, smile_offset = check_lazy_initialize(args, model, classifier, smile_offset)
 
             result, had_smile = do_convert(downloaded_input, final_movie, model, classifier, smile_offset, args.image_size)
             if had_smile:
