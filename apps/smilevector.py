@@ -139,7 +139,7 @@ def archive_post(subdir, posted_id, original_text, post_text, respond_text, down
 def do_convert(infile, outfile, model, classifier, smile_offset, image_size, initial_steps=10, recon_steps=10, offset_steps=20, end_bumper_steps=10, check_extent=True):
 
     # first align input face to canonical alignment and save result
-    if not doalign.align_face(infile, aligned_file, image_size):
+    if not doalign.align_face(infile, aligned_file, image_size, max_extension_amount=0):
         return False, False
 
     # go ahead and cache the main (body) image and landmarks, and fail if face is too big

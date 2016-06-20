@@ -10,7 +10,7 @@ THEANORC=theanorc.mine PYTHONPATH=../faceswap:../discgen /usr/local/anaconda/bin
 THEANORC=theanorc.mine PYTHONPATH=../faceswap:../discgen /usr/local/anaconda/bin/python \
     apps/smilevector.py -d \
     --input-file debug/eyes/64/input1.png \
-    --archive-subdir eyes_pre_64_aligned1 \
+    --archive-subdir eyes_pre_64_input1 \
     --image-size 64 \
     --model ../discgen/outputs/celeba_dlib_64_200z_04/celeba_dlib_64_200z_04.zip  \
     --classifier ../discgen/classifiers/celeba_dlib_02.zip \
@@ -20,7 +20,8 @@ THEANORC=theanorc.mine PYTHONPATH=../faceswap:../discgen /usr/local/anaconda/bin
 
 THEANORC=theanorc.mine PYTHONPATH=../faceswap:../discgen /usr/local/anaconda/bin/python \
     apps/smilevector.py -d \
-    --input-file bugs/blurface.jpg \
+    --input-file bugs/bad_swap.jpg \
+    --archive-subdir bad_swap_256_pre \
     --image-size 256 \
     --classifier ../discgen/classifiers/celeba_dlib_256_02.zip \
     --model ../discgen/outputs/celeba_dlib_256a_400z_d05/celeba_dlib_256a_400z_d05_e8.zip \
