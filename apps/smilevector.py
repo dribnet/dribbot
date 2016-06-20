@@ -322,6 +322,8 @@ if __name__ == "__main__":
             help='Do not update postion on timeline', default=False, action='store_true')
     parser.add_argument("--input-file", dest='input_file', default=None,
                         help="single image file input (for debugging)")
+    parser.add_argument("--archive-subdir", dest='archive_subdir', default=None,
+                        help="specific subdirectory for archiving results")
     parser.add_argument("--model", dest='model', type=str, default=None,
                         help="path to the saved model")
     parser.add_argument('--anchor-offset', dest='anchor_offset', default=None,
@@ -339,6 +341,11 @@ if __name__ == "__main__":
 
     final_movie = "temp_files/final_movie.mp4"
 
+    if args.archive_subdir:
+        archive_subdir = args.archive_subdir
+    else:
+        archive_subdir = time.strftime("%Y%m%d_%H%M%S")
+
     # do debug as a special case
     if args.input_file:
         model, classifier, smile_offset = check_lazy_initialize(args, model, classifier, smile_offset)
@@ -346,8 +353,7 @@ if __name__ == "__main__":
         print("result: {}, had_smile: {}".format(result, had_smile))
         if result and not args.no_update:
             input_basename = os.path.basename(args.input_file)
-            subdir = time.strftime("%Y%m%d_%H%M%S")
-            archive_post(subdir, "no_id", had_smile, "no_post", "no_respond", input_basename, args.input_file, final_movie, "debug")
+            archive_post(archive_subdir, "no_id", had_smile, "no_post", "no_respond", input_basename, args.input_file, final_movie, "debug")
         exit(0)
 
     # state tracking files from run to run
@@ -485,8 +491,7 @@ if __name__ == "__main__":
             print("updating state and archiving")
             add_to_recent(downloaded_input, original_text, recentfile)
             if posted_id is not None:
-                subdir = time.strftime("%Y%m%d_%H%M%S")
-                archive_post(subdir, posted_id, original_text, post_text, respond_text, downloaded_basename, downloaded_input, final_movie)
+                archive_post(archive_subdir, posted_id, original_text, post_text, respond_text, downloaded_basename, downloaded_input, final_movie)
         else:
             print("(update skipped)")
 
