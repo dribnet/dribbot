@@ -1,11 +1,15 @@
-=== debug eyes
+=== add transformed output
+
 THEANORC=theanorc.mine PYTHONPATH=../faceswap:../discgen /usr/local/anaconda/bin/python \
     apps/smilevector.py -d \
-    --input-file debug/eyes/aligned1.png \
-    --image-size 64 \
-    --model ../discgen/outputs/celeba_dlib_64_200z_04/celeba_dlib_64_200z_04.zip  \
-    --classifier ../discgen/classifiers/celeba_dlib_02.zip \
-    --anchor-offset ../discgen/encodings/celeba_dlib_64_200z_04_train_atvecs2.json
+    --input-file bugs/add_recon_post.jpg \
+    --archive-subdir add_recon_post \
+    --image-size 256 \
+    --classifier ../discgen/classifiers/celeba_dlib_256_02.zip \
+    --model ../discgen/outputs/celeba_dlib_256a_400z_d05/celeba_dlib_256a_400z_d05_e8.zip \
+    --anchor-offset ../discgen/outputs/celeba_dlib_256a_400z_d05/celeba_dlib_256a_400z_d05_e8_train_atvecs2.json
+
+=== debug eyes
 
 THEANORC=theanorc.mine PYTHONPATH=../faceswap:../discgen /usr/local/anaconda/bin/python \
     apps/smilevector.py -d \
@@ -15,6 +19,15 @@ THEANORC=theanorc.mine PYTHONPATH=../faceswap:../discgen /usr/local/anaconda/bin
     --model ../discgen/outputs/celeba_dlib_64_200z_04/celeba_dlib_64_200z_04.zip  \
     --classifier ../discgen/classifiers/celeba_dlib_02.zip \
     --anchor-offset ../discgen/encodings/celeba_dlib_64_200z_04_train_atvecs2.json
+
+THEANORC=theanorc.mine PYTHONPATH=../faceswap:../discgen /usr/local/anaconda/bin/python \
+    apps/smilevector.py -d \
+    --input-file debug/eyes/64/input1.png \
+    --archive-subdir eyes_post_64_input1 \
+    --image-size 64 \
+    --model ../discgen/outputs/celeba_dlib_64_200z_04_gaze_01/celeba_dlib_64_200z_04_gaze_01.zip  \
+    --classifier ../discgen/classifiers/celeba_dlib_02.zip \
+    --anchor-offset ../discgen/outputs/celeba_dlib_64_200z_04_gaze_01/celeba_dlib_64_200z_04_gaze_01_train_atvecs.json
 
 == input image
 

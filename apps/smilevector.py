@@ -71,6 +71,8 @@ min_allowable_extent = 60
 aligned_file = "temp_files/aligned_file.png"
 # the reconstruction is also saved
 recon_file = "temp_files/recon_file.png"
+# the reconstruction is also saved
+transformed_file = "temp_files/transformed.png"
 # reconstruction is swapped into original
 swapped_file = "temp_files/swapped_file.png"
 # used to save surprising failures
@@ -99,6 +101,7 @@ def make_or_cleanup(local_dir):
 archive_text = "metadata.txt"
 archive_aligned = "aligned.png"
 archive_recon = "reconstruction.png"
+archive_transformed = "transformed.png"
 archive_swapped = "swapped.png"
 archive_final_image = "final_image.png"
 archive_final_movie = "final_movie.mp4"
@@ -110,6 +113,7 @@ def archive_post(subdir, posted_id, original_text, post_text, respond_text, down
     archive_text_path = "{}/{}".format(archive_dir, archive_text)
     archive_aligned_path = "{}/{}".format(archive_dir, archive_aligned)
     archive_recon_path = "{}/{}".format(archive_dir, archive_recon)
+    archive_transformed_path = "{}/{}".format(archive_dir, archive_transformed)
     archive_swapped_path = "{}/{}".format(archive_dir, archive_swapped)
     archive_final_image_path = "{}/{}".format(archive_dir, archive_final_image)
     archive_final_movie_path = "{}/{}".format(archive_dir, archive_final_movie)
@@ -132,6 +136,7 @@ def archive_post(subdir, posted_id, original_text, post_text, respond_text, down
     copyfile(downloaded_input, archive_input_path)
     copyfile(aligned_file, archive_aligned_path)
     copyfile(recon_file, archive_recon_path)
+    copyfile(transformed_file, archive_transformed_path)
     copyfile(swapped_file, archive_swapped_path)
     copyfile(final_image, archive_final_image_path)
     copyfile(final_movie, archive_final_movie_path)
@@ -239,11 +244,14 @@ def do_convert(infile, outfile, model, classifier, smile_offset, image_size, ini
         imsave(filename, interpolated_im)
         print("interpolated file: {}".format(filename))
 
+    final_face_index = len(samples_array) - 1
     for i, sample in enumerate(samples_array):
         try:
             cur_index = i + initial_steps + recon_steps
             stack = np.dstack(sample)
             face_image_array = (255 * np.dstack(sample)).astype(np.uint8)
+            if i == final_face_index:
+                imsave(transformed_file, face_image_array)
             face_landmarks = faceswap.get_landmarks(face_image_array)
             filename = samples_sequence_filename.format(cur_index)
             faceswap.do_faceswap_from_face(infile, face_image_array, face_landmarks, filename)
