@@ -315,7 +315,7 @@ def check_lazy_initialize(args, model, classifier, smile_offset):
     if smile_offset is None and args.anchor_offset is not None:
         offsets = get_json_vectors(args.anchor_offset)
         dim = len(offsets[0])
-        smile_offset = offset_from_string("31", offsets, dim)
+        smile_offset = offset_from_string("31", offsets, dim) + offset_from_string("21", offsets, dim)
 
     return model, classifier, smile_offset
 
