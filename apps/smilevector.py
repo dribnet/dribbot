@@ -141,7 +141,7 @@ def archive_post(subdir, posted_id, original_text, post_text, respond_text, down
     copyfile(final_image, archive_final_image_path)
     copyfile(final_movie, archive_final_movie_path)
 
-def do_convert(infile, outfile, model, classifier, smile_offset, image_size, initial_steps=10, recon_steps=10, offset_steps=20, end_bumper_steps=10, check_extent=True):
+def do_convert(infile, outfile, model, classifier, smile_offsets, image_size, initial_steps=10, recon_steps=10, offset_steps=20, end_bumper_steps=10, check_extent=True):
 
     # first align input face to canonical alignment and save result
     if not doalign.align_face(infile, aligned_file, image_size, max_extension_amount=0):
@@ -188,10 +188,10 @@ def do_convert(infile, outfile, model, classifier, smile_offset, image_size, ini
     anchor = get_image_vectors(model, anchor_images)
     if has_smile:
         print("Smile detected, removing")
-        chosen_anchor = [anchor[0], anchor[0] - smile_offset]
+        chosen_anchor = [anchor[0], anchor[0] + smile_offsets[1]]
     else:
         print("Smile not detected, providing")
-        chosen_anchor = [anchor[0], anchor[0] + smile_offset]
+        chosen_anchor = [anchor[0], anchor[0] + smile_offsets[0]]
 
     # fire up decoder
     selector = Selector(model.top_bricks)
@@ -300,7 +300,7 @@ def check_status(r):
         print(r.text)
         raise TwitterAPIFail
 
-def check_lazy_initialize(args, model, classifier, smile_offset):
+def check_lazy_initialize(args, model, classifier, smile_offsets):
     # first get model ready
     if model is None and args.model is not None:
         print('Loading saved model...')
@@ -312,12 +312,16 @@ def check_lazy_initialize(args, model, classifier, smile_offset):
         classifier = create_running_graphs(args.classifier)
 
     # get attributes
-    if smile_offset is None and args.anchor_offset is not None:
+    if smile_offsets is None and args.anchor_offset is not None:
         offsets = get_json_vectors(args.anchor_offset)
         dim = len(offsets[0])
-        smile_offset = offset_from_string("31", offsets, dim) + offset_from_string("21", offsets, dim)
+        smile_offset_smile = offset_from_string("31", offsets, dim)
+        smile_offset_open = offset_from_string("21", offsets, dim)
+        smile_offset_blur = offset_from_string("10", offsets, dim)
+        pos_smile_offset = smile_offset_open + 0.5 * smile_offset_smile - 2.0 * smile_offset_blur
+        neg_smile_offset = -1 * smile_offset_open - smile_offset_smile - 2.0 * smile_offset_blur
 
-    return model, classifier, smile_offset
+    return model, classifier, [pos_smile_offset, neg_smile_offset]
 
 if __name__ == "__main__":
     # argparse
@@ -345,7 +349,7 @@ if __name__ == "__main__":
     # initialize and then lazily load
     model = None
     classifier = None
-    smile_offset = None
+    smile_offsets = None
 
     final_movie = "temp_files/final_movie.mp4"
 
@@ -356,8 +360,8 @@ if __name__ == "__main__":
 
     # do debug as a special case
     if args.input_file:
-        model, classifier, smile_offset = check_lazy_initialize(args, model, classifier, smile_offset)
-        result, had_smile = do_convert(args.input_file, final_movie, model, classifier, smile_offset, args.image_size, check_extent=False)
+        model, classifier, smile_offsets = check_lazy_initialize(args, model, classifier, smile_offsets)
+        result, had_smile = do_convert(args.input_file, final_movie, model, classifier, smile_offsets, args.image_size, check_extent=False)
         print("result: {}, had_smile: {}".format(result, had_smile))
         if result and not args.no_update:
             input_basename = os.path.basename(args.input_file)
@@ -420,9 +424,9 @@ if __name__ == "__main__":
         if result is False:
             print "Image found in recent cache, skipping"
         else:
-            model, classifier, smile_offset = check_lazy_initialize(args, model, classifier, smile_offset)
+            model, classifier, smile_offset = check_lazy_initialize(args, model, classifier, smile_offsets)
 
-            result, had_smile = do_convert(downloaded_input, final_movie, model, classifier, smile_offset, args.image_size)
+            result, had_smile = do_convert(downloaded_input, final_movie, model, classifier, smile_offsets, args.image_size)
             if had_smile:
                 post_text = u"😀⬇"
             else:
