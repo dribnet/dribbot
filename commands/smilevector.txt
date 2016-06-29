@@ -2,8 +2,8 @@
 
 THEANORC=theanorc.mine PYTHONPATH=../faceswap:../discgen /usr/local/anaconda/bin/python \
     apps/smilevector.py -d \
-    --input-file debug/100_256.jpg \
-    --archive-subdir follower_100_open \
+    --input-file bugs/painting_bad.jpg \
+    --archive-subdir painting_bad \
     --image-size 256 \
     --classifier ../discgen/classifiers/celeba_dlib_256_02.zip \
     --model ../discgen/outputs/celeba_dlib_256a_400z_d06/celeba_dlib_256a_400z_d06.zip \

@@ -25,7 +25,7 @@ from experiments.run_classifier import create_running_graphs
 import faceswap
 import numpy as np
 from PIL import Image
-from scipy.misc import imread, imsave
+from scipy.misc import imread, imsave, imresize
 import theano
 import hashlib
 import time
@@ -47,7 +47,7 @@ def check_recent(infile, recentfile):
     else:
         return True
 
-def add_to_recent(infile, comment, recentfile, limit=200):
+def add_to_recent(infile, comment, recentfile, limit=500):
     if os.path.isfile(recentfile):
         copyfile(recentfile, "{}.bak".format(recentfile))
 
@@ -67,6 +67,8 @@ def add_to_recent(infile, comment, recentfile, limit=200):
 
 max_allowable_extent = 180
 min_allowable_extent = 60
+# reized input file
+resized_input_file = "temp_files/resized_input_file.png"
 # the input image file is algined and saved
 aligned_file = "temp_files/aligned_file.png"
 # the reconstruction is also saved
@@ -141,7 +143,42 @@ def archive_post(subdir, posted_id, original_text, post_text, respond_text, down
     copyfile(final_image, archive_final_image_path)
     copyfile(final_movie, archive_final_movie_path)
 
-def do_convert(infile, outfile, model, classifier, smile_offsets, image_size, initial_steps=10, recon_steps=10, offset_steps=20, end_bumper_steps=10, check_extent=True):
+max_extent = 480
+def resize_to_a_good_size(infile, outfile):
+    image_array = imread(infile)
+    im_shape = image_array.shape
+    if len(im_shape) == 2:
+        w, h = im_shape
+        print("converting from 1 channel to 3")
+        image_array = np.array([image_array, image_array, image_array])
+    else:
+        w, h, _ = im_shape
+    scale_down = None
+    if w >= h:
+        if w > max_extent:
+            scale_down = float(max_extent) / w
+    else:
+        if h > max_extent:
+            scale_down = float(max_extent) / h
+
+    if scale_down is not None:
+        new_w = int(scale_down * w)
+        new_h = int(scale_down * h)
+    else:
+        new_w = w
+        new_h = h
+
+    new_w = new_w - (new_w % 4)
+    new_h = new_h - (new_h % 4)
+
+    print("resizing from {},{} to {},{}".format(w, h, new_w, new_h))
+    image_array_resized = imresize(image_array, (new_w, new_h))
+    imsave(outfile, image_array_resized)
+
+def do_convert(raw_infile, outfile, model, classifier, smile_offsets, image_size, initial_steps=10, recon_steps=10, offset_steps=20, end_bumper_steps=10, check_extent=True):
+    infile = resized_input_file;
+
+    resize_to_a_good_size(raw_infile, infile)
 
     # first align input face to canonical alignment and save result
     if not doalign.align_face(infile, aligned_file, image_size, max_extension_amount=0):
@@ -318,15 +355,16 @@ def check_lazy_initialize(args, model, classifier, smile_offsets):
         smile_offset_smile = offset_from_string("31", offsets, dim)
         smile_offset_open = offset_from_string("21", offsets, dim)
         smile_offset_blur = offset_from_string("10", offsets, dim)
-        pos_smile_offset = smile_offset_open + 0.5 * smile_offset_smile - 2.0 * smile_offset_blur
+        pos_smile_offset = 0.75 * smile_offset_open + 0.75 * smile_offset_smile - 2.0 * smile_offset_blur
         neg_smile_offset = -1 * smile_offset_open - smile_offset_smile - 2.0 * smile_offset_blur
+        smile_offsets = [pos_smile_offset, neg_smile_offset]
 
-    return model, classifier, [pos_smile_offset, neg_smile_offset]
+    return model, classifier, smile_offsets
 
 if __name__ == "__main__":
     # argparse
     parser = argparse.ArgumentParser(description='Follow account and repost munged images')
-    parser.add_argument('-a','--account', help='Account to follow', default="peopleschoice")
+    parser.add_argument('-a','--accounts', help='Accounts to follow (comma separated)', default="peopleschoice,NPG")
     parser.add_argument('-d','--debug', help='Debug: do not post', default=False, action='store_true')
     parser.add_argument('-o','--open', help='Open image (when in debug mode)', default=False, action='store_true')
     parser.add_argument('-c','--creds', help='Twitter json credentials1 (smile)', default='creds.json')
@@ -381,8 +419,12 @@ if __name__ == "__main__":
 
     twitter_api = TwitterAPI(creds["consumer_key"], creds["consumer_secret"], creds["access_token"], creds["access_token_secret"])
 
+    accounts = args.accounts.split(",")
+    account = random.choice(accounts)
+    print("choosing a post from account {}".format(account))
+
     # just grab most recent tweet
-    stuff = tweepy_api.user_timeline(screen_name = args.account, \
+    stuff = tweepy_api.user_timeline(screen_name = account, \
         count = 200, \
         include_rts = False,
         exclude_replies = False)
@@ -404,11 +446,17 @@ if __name__ == "__main__":
         tweet_id = top["id"]
         rawtext = top["text"]
         text = re.sub(' http.*$', '', rawtext)
+        original_text = text.encode('ascii', 'ignore')
+        post_text = u"no post"
+
         if not "entities" in top or not "media" in top["entities"]:
             continue
+
+        print(u"Looking at post: {}".format(original_text))
+
         media = top["entities"]["media"][0]
         media_url = media["media_url"]
-        link_url = u"https://twitter.com/{}/status/{}".format(args.account, tweet_id)
+        link_url = u"https://twitter.com/{}/status/{}".format(account, tweet_id)
 
         path = urlparse.urlparse(media_url).path
         ext = os.path.splitext(path)[1]
@@ -418,13 +466,11 @@ if __name__ == "__main__":
         print("Downloading {} as {}".format(media_url, downloaded_input))
         urllib.urlretrieve(media_url, downloaded_input)
 
-        original_text = text.encode('ascii', 'ignore')
-        post_text = u"no post"
         result = check_recent(downloaded_input, recentfile)
         if result is False:
             print "Image found in recent cache, skipping"
         else:
-            model, classifier, smile_offset = check_lazy_initialize(args, model, classifier, smile_offsets)
+            model, classifier, smile_offsets = check_lazy_initialize(args, model, classifier, smile_offsets)
 
             result, had_smile = do_convert(downloaded_input, final_movie, model, classifier, smile_offsets, args.image_size)
             if had_smile:
