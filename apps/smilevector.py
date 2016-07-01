@@ -449,7 +449,9 @@ if __name__ == "__main__":
         top = item._json
         tweet_id = top["id"]
         rawtext = top["text"]
-        text = re.sub(' http.*$', '', rawtext)
+        text = rawtext.strip()
+        text = re.sub(' http.*$', '', text)
+        text = re.sub('\n.*', '', text)
         original_text = text.encode('ascii', 'ignore')
         post_text = u"no post"
 
