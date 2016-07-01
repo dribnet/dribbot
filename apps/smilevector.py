@@ -258,10 +258,12 @@ def do_convert(raw_infile, outfile, model, classifier, smile_offsets, image_size
     # build face swapped reconstruction
     sample = samples_array[0]
     try:
+        # face_image_array = (255 * np.dstack(sample)).astype(np.uint8)
         face_image_array = (255 * np.dstack(sample)).astype(np.uint8)
         imsave(recon_file, face_image_array)
-        face_landmarks = faceswap.get_landmarks(face_image_array)
-        faceswap.do_faceswap_from_face(infile, face_image_array, face_landmarks, swapped_file)
+        # face_landmarks = faceswap.get_landmarks(face_image_array)
+        # faceswap.do_faceswap_from_face(infile, face_image_array, face_landmarks, swapped_file)
+        faceswap.do_faceswap(infile, recon_file, swapped_file)
         print("swapped file: {}".format(swapped_file))
         recon_array = imread(swapped_file)
     except faceswap.NoFaces:
@@ -287,11 +289,13 @@ def do_convert(raw_infile, outfile, model, classifier, smile_offsets, image_size
             cur_index = i + initial_steps + recon_steps
             stack = np.dstack(sample)
             face_image_array = (255 * np.dstack(sample)).astype(np.uint8)
-            if i == final_face_index:
-                imsave(transformed_file, face_image_array)
+            # if i == final_face_index:
+            #     imsave(transformed_file, face_image_array)
             face_landmarks = faceswap.get_landmarks(face_image_array)
             filename = samples_sequence_filename.format(cur_index)
-            faceswap.do_faceswap_from_face(infile, face_image_array, face_landmarks, filename)
+            imsave(transformed_file, face_image_array)
+            # faceswap.do_faceswap_from_face(infile, face_image_array, face_landmarks, filename)
+            faceswap.do_faceswap(infile, transformed_file, filename)
             print("generated file: {}".format(filename))
         except faceswap.NoFaces:
             print("faceswap: no faces in {}".format(infile))
