@@ -2,12 +2,12 @@
 
 THEANORC=theanorc.mine PYTHONPATH=../faceswap:../discgen /usr/local/anaconda/bin/python \
     apps/smilevector.py -d \
-    --input-file bugs/lightface1/input_image.jpg \
-    --archive-subdir lightface1 \
+    --input-file bugs/lightface2/input_image.jpg \
+    --archive-subdir lightface2_unblue \
     --image-size 256 \
     --classifier ../discgen/classifiers/celeba_dlib_256_02.zip \
     --model ../discgen/outputs/celeba_dlib_256a_400z_d06/celeba_dlib_256a_400z_d06.zip \
-    --anchor-offset ../discgen/outputs/celeba_dlib_256a_400z_d06/celeba_dlib_256a_400z_d06_train_atvecs2.json
+    --anchor-offset ../discgen/outputs/celeba_dlib_256a_400z_d06/celeba_dlib_256a_400z_d06_blur_train_atvecs2.json
 
 === debug eyes
 
