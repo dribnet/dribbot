@@ -156,7 +156,6 @@ def resize_to_a_good_size(infile, outfile):
 
     # maximum twitter aspect ratio is 239:100
     max_width = int(h * 230 / 100)
-    print("MW AND H,W {}, {}, {}".format(max_width, h, w))
     if w > max_width:
         offset_x = (w - max_width)/2
         print("cropping from {0},{1} to {2},{1}".format(w,h,max_width))
@@ -200,7 +199,11 @@ def do_convert(raw_infile, outfile, model, classifier, smile_offsets, image_size
         return False, False
 
     # first align input face to canonical alignment and save result
-    if not doalign.align_face(infile, aligned_file, image_size, max_extension_amount=0):
+    try:
+        if not doalign.align_face(infile, aligned_file, image_size, max_extension_amount=0):
+            return False, False
+    except:
+        # get_landmarks strangely fails sometimes (see bad_shriek test image)
         return False, False
 
     # go ahead and cache the main (body) image and landmarks, and fail if face is too big
