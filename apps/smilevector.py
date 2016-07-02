@@ -148,11 +148,28 @@ def resize_to_a_good_size(infile, outfile):
     image_array = imread(infile)
     im_shape = image_array.shape
     if len(im_shape) == 2:
-        w, h = im_shape
+        h, w = im_shape
         print("converting from 1 channel to 3")
         image_array = np.array([image_array, image_array, image_array])
     else:
-        w, h, _ = im_shape
+        h, w, _ = im_shape
+
+    # maximum twitter aspect ratio is 239:100
+    max_width = int(h * 230 / 100)
+    print("MW AND H,W {}, {}, {}".format(max_width, h, w))
+    if w > max_width:
+        offset_x = (w - max_width)/2
+        print("cropping from {0},{1} to {2},{1}".format(w,h,max_width))
+        image_array = image_array[:,offset_x:offset_x+max_width,:]
+        w = max_width
+    # minimum twitter aspect ratio is maybe 1:2
+    max_height = int(w * 2)
+    if h > max_height:
+        offset_y = (h - max_height)/2
+        print("cropping from {0},{1} to {0},{2}".format(w,h,max_height))
+        image_array = image_array[offset_y:offset_y+max_height,:,:]
+        h = max_height
+
     scale_down = None
     if w >= h:
         if w > max_extent:
@@ -172,13 +189,15 @@ def resize_to_a_good_size(infile, outfile):
     new_h = new_h - (new_h % 4)
 
     print("resizing from {},{} to {},{}".format(w, h, new_w, new_h))
-    image_array_resized = imresize(image_array, (new_w, new_h))
+    image_array_resized = imresize(image_array, (new_h, new_w))
     imsave(outfile, image_array_resized)
+    return True
 
 def do_convert(raw_infile, outfile, model, classifier, smile_offsets, image_size, initial_steps=10, recon_steps=10, offset_steps=20, end_bumper_steps=10, check_extent=True):
     infile = resized_input_file;
 
-    resize_to_a_good_size(raw_infile, infile)
+    if not resize_to_a_good_size(raw_infile, infile):
+        return False, False
 
     # first align input face to canonical alignment and save result
     if not doalign.align_face(infile, aligned_file, image_size, max_extension_amount=0):
@@ -342,6 +361,9 @@ def check_status(r):
         raise TwitterAPIFail
 
 def check_lazy_initialize(args, model, classifier, smile_offsets):
+    # debug: don't load anything...
+    # return model, classifier, smile_offsets
+
     # first get model ready
     if model is None and args.model is not None:
         print('Loading saved model...')
