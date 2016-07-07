@@ -145,14 +145,19 @@ def archive_post(subdir, posted_id, original_text, post_text, respond_text, down
 
 max_extent = 480
 def resize_to_a_good_size(infile, outfile):
-    image_array = imread(infile)
+    image_array = imread(infile, mode='RGB')
+
+    # this is believed to no longer be necessary because imread is coercing to rgb
+    # im_shape = image_array.shape
+    # if len(im_shape) == 2:
+    #     h, w = im_shape
+    #     print("converting from 1 channel to 3")
+    #     image_array = np.array([image_array, image_array, image_array])
+    # else:
+    #     h, w, _ = im_shape
+
     im_shape = image_array.shape
-    if len(im_shape) == 2:
-        h, w = im_shape
-        print("converting from 1 channel to 3")
-        image_array = np.array([image_array, image_array, image_array])
-    else:
-        h, w, _ = im_shape
+    h, w, _ = im_shape
 
     # maximum twitter aspect ratio is 239:100
     max_width = int(h * 230 / 100)
@@ -208,7 +213,8 @@ def do_convert(raw_infile, outfile, model, classifier, smile_offsets, image_size
 
     # go ahead and cache the main (body) image and landmarks, and fail if face is too big
     try:
-        body_image_array = imread(infile)
+        body_image_array = imread(infile, mode='RGB')
+        print(body_image_array.shape)
         body_landmarks = faceswap.get_landmarks(body_image_array)
         max_extent = faceswap.get_max_extent(body_landmarks)
     except faceswap.NoFaces:
@@ -287,7 +293,7 @@ def do_convert(raw_infile, outfile, model, classifier, smile_offsets, image_size
         # faceswap.do_faceswap_from_face(infile, face_image_array, face_landmarks, swapped_file)
         faceswap.do_faceswap(infile, recon_file, swapped_file)
         print("swapped file: {}".format(swapped_file))
-        recon_array = imread(swapped_file)
+        recon_array = imread(swapped_file, mode='RGB')
     except faceswap.NoFaces:
         print("faceswap: no faces when generating swapped file {}".format(infile))
         imsave(debug_file, face_image_array)
