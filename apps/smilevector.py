@@ -101,6 +101,7 @@ def make_or_cleanup(local_dir):
         os.remove(os.path.join(local_dir, f))
 
 archive_text = "metadata.txt"
+archive_resized = "input_resized.png"
 archive_aligned = "aligned.png"
 archive_recon = "reconstruction.png"
 archive_transformed = "transformed.png"
@@ -113,6 +114,7 @@ def archive_post(subdir, posted_id, original_text, post_text, respond_text, down
     archive_dir = "{}/{}".format(archive_dir, subdir)
     archive_input_path = "{}/{}".format(archive_dir, downloaded_basename)
     archive_text_path = "{}/{}".format(archive_dir, archive_text)
+    archive_resized_path = "{}/{}".format(archive_dir, archive_resized)
     archive_aligned_path = "{}/{}".format(archive_dir, archive_aligned)
     archive_recon_path = "{}/{}".format(archive_dir, archive_recon)
     archive_transformed_path = "{}/{}".format(archive_dir, archive_transformed)
@@ -136,6 +138,7 @@ def archive_post(subdir, posted_id, original_text, post_text, respond_text, down
 
     # save input, a few working files, outputs
     copyfile(downloaded_input, archive_input_path)
+    copyfile(resized_input_file, archive_resized_path)
     copyfile(aligned_file, archive_aligned_path)
     copyfile(recon_file, archive_recon_path)
     copyfile(transformed_file, archive_transformed_path)
@@ -143,7 +146,7 @@ def archive_post(subdir, posted_id, original_text, post_text, respond_text, down
     copyfile(final_image, archive_final_image_path)
     copyfile(final_movie, archive_final_movie_path)
 
-max_extent = 480
+max_extent = 720
 def resize_to_a_good_size(infile, outfile):
     image_array = imread(infile, mode='RGB')
 
