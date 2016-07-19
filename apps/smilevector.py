@@ -30,6 +30,10 @@ import theano
 import hashlib
 import time
 
+tweet_suffix = u""
+# tweet_suffix = u" #test_hashtag"
+# tweet_suffix = u" #nuclai16"
+
 # returns True if file not found and can be processed
 def check_recent(infile, recentfile):
     try:
@@ -514,9 +518,9 @@ if __name__ == "__main__":
 
             result, had_smile = do_convert(downloaded_input, final_movie, model, classifier, smile_offsets, args.image_size)
             if had_smile:
-                post_text = u"😀⬇"
+                post_text = u"😀⬇{}".format(tweet_suffix)
             else:
-                post_text = u"😀⬆"
+                post_text = u"😀⬆{}".format(tweet_suffix)
 
         if args.debug:
             print(u"Update text: {}, Movie: {}".format(original_text, final_movie))
