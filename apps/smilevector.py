@@ -30,9 +30,10 @@ import theano
 import hashlib
 import time
 
-tweet_suffix = u""
+# tweet_suffix = u""
 # tweet_suffix = u" #test_hashtag"
 # tweet_suffix = u" #nuclai16"
+tweet_suffix = u" #NeuralPuppet"
 
 # returns True if file not found and can be processed
 def check_recent(infile, recentfile):
