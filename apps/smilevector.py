@@ -15,13 +15,12 @@ import doalign
 import random
 from subprocess import call
 
+from plat.utils import anchors_from_image, offset_from_string, get_json_vectors
+from plat.grid_layout import create_splash_grid
+
 # discgen related imports
-from blocks.model import Model
-from blocks.serialization import load
-from blocks.select import Selector
-from utils.sample_utils import offset_from_string, anchors_from_image, get_image_vectors, compute_splash, get_json_vectors
-from utils.sample import samples_from_latents
 from experiments.run_classifier import create_running_graphs
+from utils.interface import DiscGenModel
 import faceswap
 import numpy as np
 from PIL import Image
@@ -205,7 +204,7 @@ def resize_to_a_good_size(infile, outfile):
     imsave(outfile, image_array_resized)
     return True
 
-def do_convert(raw_infile, outfile, model, classifier, smile_offsets, image_size, initial_steps=10, recon_steps=10, offset_steps=20, end_bumper_steps=10, check_extent=True):
+def do_convert(raw_infile, outfile, dmodel, classifier, smile_offsets, image_size, initial_steps=10, recon_steps=10, offset_steps=20, end_bumper_steps=10, check_extent=True):
     infile = resized_input_file;
 
     if not resize_to_a_good_size(raw_infile, infile):
@@ -258,7 +257,7 @@ def do_convert(raw_infile, outfile, model, classifier, smile_offsets, image_size
         has_smile = random.choice([True, False])
 
     # encode aligned image array as vector, apply offset
-    anchor = get_image_vectors(model, anchor_images)
+    anchor = dmodel.encode_images(anchor_images)
     if has_smile:
         print("Smile detected, removing")
         chosen_anchor = [anchor[0], anchor[0] + smile_offsets[1]]
@@ -266,10 +265,7 @@ def do_convert(raw_infile, outfile, model, classifier, smile_offsets, image_size
         print("Smile not detected, providing")
         chosen_anchor = [anchor[0], anchor[0] + smile_offsets[0]]
 
-    # fire up decoder
-    selector = Selector(model.top_bricks)
-    decoder_mlp, = selector.select('/decoder_mlp').bricks
-    z_dim = decoder_mlp.input_dim
+    z_dim = dmodel.get_zdim()
 
     # TODO: fix variable renaming
     anchors, samples_sequence_dir, movie_file = chosen_anchor, sequence_dir, outfile
@@ -281,8 +277,8 @@ def do_convert(raw_infile, outfile, model, classifier, smile_offsets, image_size
     make_or_cleanup(samples_sequence_dir)
 
     # generate latents from anchors
-    z_latents = compute_splash(rows=1, cols=offset_steps, dim=z_dim, space=offset_steps-1, anchors=anchors, spherical=True, gaussian=False)
-    samples_array = samples_from_latents(z_latents, model)
+    z_latents = create_splash_grid(rows=1, cols=offset_steps, dim=z_dim, space=offset_steps-1, anchors=anchors, spherical=True, gaussian=False)
+    samples_array = dmodel.sample_at(z_latents)
     print("Samples array: ", samples_array.shape)
 
     # save original file as-is
@@ -377,14 +373,14 @@ def check_status(r):
         print(r.text)
         raise TwitterAPIFail
 
-def check_lazy_initialize(args, model, classifier, smile_offsets):
+def check_lazy_initialize(args, dmodel, classifier, smile_offsets):
     # debug: don't load anything...
     # return model, classifier, smile_offsets
 
     # first get model ready
-    if model is None and args.model is not None:
+    if dmodel is None and args.model is not None:
         print('Loading saved model...')
-        model = Model(load(args.model).algorithm.cost)
+        dmodel = DiscGenModel(filename=args.model)
 
     # first get model ready
     if classifier is None and args.classifier is not None:
@@ -402,7 +398,7 @@ def check_lazy_initialize(args, model, classifier, smile_offsets):
         neg_smile_offset = -1 * smile_offset_open - smile_offset_smile + 1.0 * smile_offset_blur
         smile_offsets = [pos_smile_offset, neg_smile_offset]
 
-    return model, classifier, smile_offsets
+    return dmodel, classifier, smile_offsets
 
 if __name__ == "__main__":
     # argparse
@@ -428,7 +424,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # initialize and then lazily load
-    model = None
+    dmodel = None
     classifier = None
     smile_offsets = None
 
@@ -441,8 +437,8 @@ if __name__ == "__main__":
 
     # do debug as a special case
     if args.input_file:
-        model, classifier, smile_offsets = check_lazy_initialize(args, model, classifier, smile_offsets)
-        result, had_smile = do_convert(args.input_file, final_movie, model, classifier, smile_offsets, args.image_size, check_extent=False)
+        dmodel, classifier, smile_offsets = check_lazy_initialize(args, dmodel, classifier, smile_offsets)
+        result, had_smile = do_convert(args.input_file, final_movie, dmodel, classifier, smile_offsets, args.image_size, check_extent=False)
         print("result: {}, had_smile: {}".format(result, had_smile))
         if result and not args.no_update:
             input_basename = os.path.basename(args.input_file)
@@ -515,9 +511,9 @@ if __name__ == "__main__":
         if result is False:
             print "Image found in recent cache, skipping"
         else:
-            model, classifier, smile_offsets = check_lazy_initialize(args, model, classifier, smile_offsets)
+            dmodel, classifier, smile_offsets = check_lazy_initialize(args, dmodel, classifier, smile_offsets)
 
-            result, had_smile = do_convert(downloaded_input, final_movie, model, classifier, smile_offsets, args.image_size)
+            result, had_smile = do_convert(downloaded_input, final_movie, dmodel, classifier, smile_offsets, args.image_size)
             if had_smile:
                 post_text = u"😀⬇{}".format(tweet_suffix)
             else:

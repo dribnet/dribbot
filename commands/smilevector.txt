@@ -1,3 +1,13 @@
+THEANORC=theanorc.mine PYTHONPATH=../plat:../faceswap:../discgen \
+    /usr/local/anaconda/bin/python \
+    apps/smilevector.py \
+    --input-file bugs/painting.jpg \
+    --debug \
+    --image-size 256 \
+    --classifier ../discgen/classifiers/celeba_dlib_256_02.zip \
+    --model ../discgen/outputs/celeba_dlib_256a_400z_d06/celeba_dlib_256a_400z_d06.zip \
+    --anchor-offset ../discgen/outputs/celeba_dlib_256a_400z_d06/celeba_dlib_256a_400z_d06_blur_train_atvecs2.json
+
 === add transformed output
 
 THEANORC=theanorc.mine PYTHONPATH=../faceswap:../discgen /usr/local/anaconda/bin/python \
