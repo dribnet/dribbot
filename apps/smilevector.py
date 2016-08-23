@@ -395,8 +395,8 @@ def check_lazy_initialize(args, dmodel, classifier, smile_offsets):
         smile_offset_smile = offset_from_string(offset_indexes[0], offsets, dim)
         smile_offset_open = offset_from_string(offset_indexes[1], offsets, dim)
         smile_offset_blur = offset_from_string(offset_indexes[2], offsets, dim)
-        pos_smile_offset = 0.75 * smile_offset_open + 0.75 * smile_offset_smile + 1.0 * smile_offset_blur
-        neg_smile_offset = -1 * smile_offset_open - smile_offset_smile + 1.0 * smile_offset_blur
+        pos_smile_offset = 1 * smile_offset_open + 1.25 * smile_offset_smile + 1.0 * smile_offset_blur
+        neg_smile_offset = -1 * smile_offset_open - 1.25 * smile_offset_smile + 1.0 * smile_offset_blur
         smile_offsets = [pos_smile_offset, neg_smile_offset]
 
     return dmodel, classifier, smile_offsets
