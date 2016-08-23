@@ -1,8 +1,39 @@
+=== debug gender, new vectors
+
+THEANORC=theanorc.mine PYTHONPATH=../faceswap:../discgen:../plat \
+    /usr/local/bin/unbuffer /usr/local/anaconda/bin/python \
+    apps/smilevector.py \
+    --input-file bugs/gender1.jpg \
+    --debug \
+    --archive-subdir gender1_pre \
+    --image-size 256 \
+    --classifier ../discgen/classifiers/celeba_dlib_256_02.zip \
+    --model ../discgen/outputs/celeba_dlib_256a_400z_d06/celeba_dlib_256a_400z_d06.zip \
+    --anchor-offset ../discgen/outputs/celeba_dlib_256a_400z_d06/celeba_dlib_256a_400z_d06_blur_train_atvecs2.json \
+    --anchor-indexes 31,21,41
+
+THEANORC=theanorc.mine PYTHONPATH=../faceswap:../discgen:../plat \
+    /usr/local/bin/unbuffer /usr/local/anaconda/bin/python \
+    apps/smilevector.py \
+    --input-file bugs/gender1.jpg \
+    --debug \
+    --archive-subdir gender1_post \
+    --image-size 256 \
+    --classifier ../discgen/classifiers/celeba_dlib_256_02.zip \
+    --model ../discgen/outputs/celeba_dlib_256a_400z_d06/celeba_dlib_256a_400z_d06.zip \
+    --anchor-offset ../discgen/outputs/celeba_dlib_256a_400z_d06/atvecs2_balanced_20_21_31.json \
+    --anchor-indexes 44,43,41
+
+outputs/celeba_dlib_256a_400z_d06/atvecs_balanced_20_21_31
+
+=== painting
+
 THEANORC=theanorc.mine PYTHONPATH=../plat:../faceswap:../discgen \
     /usr/local/anaconda/bin/python \
     apps/smilevector.py \
     --input-file bugs/painting.jpg \
     --debug \
+    --archive-subdir painting2 \
     --image-size 256 \
     --classifier ../discgen/classifiers/celeba_dlib_256_02.zip \
     --model ../discgen/outputs/celeba_dlib_256a_400z_d06/celeba_dlib_256a_400z_d06.zip \

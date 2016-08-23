@@ -391,9 +391,10 @@ def check_lazy_initialize(args, dmodel, classifier, smile_offsets):
     if smile_offsets is None and args.anchor_offset is not None:
         offsets = get_json_vectors(args.anchor_offset)
         dim = len(offsets[0])
-        smile_offset_smile = offset_from_string("31", offsets, dim)
-        smile_offset_open = offset_from_string("21", offsets, dim)
-        smile_offset_blur = offset_from_string("41", offsets, dim)
+        offset_indexes = args.anchor_indexes.split(",")
+        smile_offset_smile = offset_from_string(offset_indexes[0], offsets, dim)
+        smile_offset_open = offset_from_string(offset_indexes[1], offsets, dim)
+        smile_offset_blur = offset_from_string(offset_indexes[2], offsets, dim)
         pos_smile_offset = 0.75 * smile_offset_open + 0.75 * smile_offset_smile + 1.0 * smile_offset_blur
         neg_smile_offset = -1 * smile_offset_open - smile_offset_smile + 1.0 * smile_offset_blur
         smile_offsets = [pos_smile_offset, neg_smile_offset]
@@ -417,6 +418,8 @@ if __name__ == "__main__":
                         help="path to the saved model")
     parser.add_argument('--anchor-offset', dest='anchor_offset', default=None,
                         help="use json file as source of each anchors offsets")
+    parser.add_argument('--anchor-indexes', dest='anchor_indexes', default="31,21,41",
+                        help="smile_index,open_mouth_index,blur_index")
     parser.add_argument("--image-size", dest='image_size', type=int, default=64,
                         help="size of (offset) images")
     parser.add_argument('--classifier', dest='classifier', type=str,
