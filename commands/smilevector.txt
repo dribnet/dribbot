@@ -15,9 +15,9 @@ THEANORC=theanorc.mine PYTHONPATH=../faceswap:../discgen:../plat \
 THEANORC=theanorc.mine PYTHONPATH=../faceswap:../discgen:../plat \
     /usr/local/bin/unbuffer /usr/local/anaconda/bin/python \
     apps/smilevector.py \
-    --input-file bugs/gender1.jpg \
+    --input-file bugs/poe.jpg \
     --debug \
-    --archive-subdir gender1_post3 \
+    --archive-subdir poe \
     --image-size 256 \
     --classifier ../discgen/classifiers/celeba_dlib_256_02.zip \
     --model ../discgen/outputs/celeba_dlib_256a_400z_d06/celeba_dlib_256a_400z_d06.zip \

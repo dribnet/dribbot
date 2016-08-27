@@ -199,24 +199,32 @@ def resize_to_a_good_size(infile, outfile):
     new_w = new_w - (new_w % 4)
     new_h = new_h - (new_h % 4)
 
+    if new_w >= 1.5 * new_h:
+        wide_image = True
+    else:
+        wide_image = False
+
     print("resizing from {},{} to {},{}".format(w, h, new_w, new_h))
     image_array_resized = imresize(image_array, (new_h, new_w))
     imsave(outfile, image_array_resized)
-    return True
+    return True, wide_image
 
 def do_convert(raw_infile, outfile, dmodel, classifier, smile_offsets, image_size, initial_steps=10, recon_steps=10, offset_steps=20, end_bumper_steps=10, check_extent=True):
+    failure_return_status = False, False, False
+
     infile = resized_input_file;
 
-    if not resize_to_a_good_size(raw_infile, infile):
-        return False, False
+    did_resize, wide_image = resize_to_a_good_size(raw_infile, infile)
+    if not did_resize:
+        return failure_return_status
 
     # first align input face to canonical alignment and save result
     try:
         if not doalign.align_face(infile, aligned_file, image_size, max_extension_amount=0):
-            return False, False
+            return failure_return_status
     except:
         # get_landmarks strangely fails sometimes (see bad_shriek test image)
-        return False, False
+        return failure_return_status
 
     # go ahead and cache the main (body) image and landmarks, and fail if face is too big
     try:
@@ -226,16 +234,16 @@ def do_convert(raw_infile, outfile, dmodel, classifier, smile_offsets, image_siz
         max_extent = faceswap.get_max_extent(body_landmarks)
     except faceswap.NoFaces:
         print("faceswap: no faces in {}".format(infile))
-        return False, False
+        return failure_return_status
     except faceswap.TooManyFaces:
         print("faceswap: too many faces in {}".format(infile))
-        return False, False
+        return failure_return_status
     if check_extent and max_extent > max_allowable_extent:
         print("face to large: {}".format(max_extent))
-        return False, False
+        return failure_return_status
     elif check_extent and max_extent < min_allowable_extent:
         print("face to small: {}".format(max_extent))
-        return False, False
+        return failure_return_status
     else:
         print("face not too large: {}".format(max_extent))
 
@@ -301,10 +309,10 @@ def do_convert(raw_infile, outfile, dmodel, classifier, smile_offsets, image_siz
     except faceswap.NoFaces:
         print("faceswap: no faces when generating swapped file {}".format(infile))
         imsave(debug_file, face_image_array)
-        return False, False
+        return failure_return_status
     except faceswap.TooManyFaces:
         print("faceswap: too many faces in {}".format(infile))
-        return False, False
+        return failure_return_status
 
     # now save interpolations to recon
     for i in range(1,recon_steps):
@@ -331,10 +339,10 @@ def do_convert(raw_infile, outfile, dmodel, classifier, smile_offsets, image_siz
             print("generated file: {}".format(filename))
         except faceswap.NoFaces:
             print("faceswap: no faces in {}".format(infile))
-            return False, False
+            return failure_return_status
         except faceswap.TooManyFaces:
             print("faceswap: too many faces in {}".format(infile))
-            return False, False
+            return failure_return_status
 
     # copy last image back around to first
     last_sequence_index = initial_steps + recon_steps + offset_steps - 1
@@ -356,11 +364,11 @@ def do_convert(raw_infile, outfile, dmodel, classifier, smile_offsets, image_siz
     print("ffmpeg command: {}".format(command))
     result = os.system(command)
     if result != 0:
-        return False, False
+        return failure_return_status
     if not os.path.isfile(movie_file):
-        return False, False
+        return failure_return_status
 
-    return True, has_smile
+    return True, has_smile, wide_image
 
 # throws exeption if things don't go well
 class TwitterAPIFail(Exception):
@@ -432,6 +440,7 @@ if __name__ == "__main__":
     smile_offsets = None
 
     final_movie = "temp_files/final_movie.mp4"
+    final_image = "temp_files/final_image.png"
 
     if args.archive_subdir:
         archive_subdir = args.archive_subdir
@@ -441,7 +450,7 @@ if __name__ == "__main__":
     # do debug as a special case
     if args.input_file:
         dmodel, classifier, smile_offsets = check_lazy_initialize(args, dmodel, classifier, smile_offsets)
-        result, had_smile = do_convert(args.input_file, final_movie, dmodel, classifier, smile_offsets, args.image_size, check_extent=False)
+        result, had_smile, is_wide = do_convert(args.input_file, final_movie, dmodel, classifier, smile_offsets, args.image_size, check_extent=False)
         print("result: {}, had_smile: {}".format(result, had_smile))
         if result and not args.no_update:
             input_basename = os.path.basename(args.input_file)
@@ -516,7 +525,7 @@ if __name__ == "__main__":
         else:
             dmodel, classifier, smile_offsets = check_lazy_initialize(args, dmodel, classifier, smile_offsets)
 
-            result, had_smile = do_convert(downloaded_input, final_movie, dmodel, classifier, smile_offsets, args.image_size)
+            result, had_smile, is_wide = do_convert(downloaded_input, final_movie, dmodel, classifier, smile_offsets, args.image_size)
             if had_smile:
                 post_text = u"😀⬇{}".format(tweet_suffix)
             else:
@@ -544,9 +553,14 @@ if __name__ == "__main__":
                 while update_response is None:
                     try:
                         bytes_sent = 0
-                        total_bytes = os.path.getsize(final_movie)
-                        file = open(final_movie, 'rb')
-                        r = twitter_api.request('media/upload', {'command':'INIT', 'media_type':'video/mp4', 'total_bytes':total_bytes})
+                        if is_wide:
+                            total_bytes = os.path.getsize(final_movie)
+                            file = open(final_movie, 'rb')
+                            r = twitter_api.request('media/upload', {'command':'INIT', 'media_type':'video/mp4', 'total_bytes':total_bytes})
+                        else:
+                            total_bytes = os.path.getsize(final_image)
+                            file = open(final_image, 'rb')
+                            r = twitter_api.request('media/upload', {'command':'INIT', 'media_type':'image/png', 'total_bytes':total_bytes})
                         check_status(r)
 
                         media_id = r.json()['media_id']
