@@ -1,3 +1,31 @@
+=== ALI smilevector
+THEANORC=theanorc.mine PYTHONPATH=../plat:../discgen:../ALI:../faceswap \
+    /usr/local/bin/unbuffer /usr/local/anaconda/envs/ALI_smilevector/bin/python \
+    apps/smilevector.py \
+    --input-file bugs/puppet.jpg \
+    --debug \
+    --archive-subdir puppet_ali \
+    --image-size 128 \
+    --model ../ALI/outputs/celeba_dlib_128_03/celeba_dlib_128_03.zip \
+    --anchor-offset  ../ALI/outputs/celeba_dlib_128_03/atvecs_balanced_20_21_31.json \
+    --anchor-indexes 2,1,_ 
+
+THEANORC=theanorc.mine PYTHONPATH=../plat:../discgen:../ALI:../faceswap \
+    /usr/local/bin/unbuffer /usr/local/anaconda/envs/ALI_smilevector/bin/python \
+    apps/smilevector.py \
+    --input-file bugs/add_recon_post.jpg \
+    --debug \
+    --archive-subdir standard_ali \
+    --image-size 128 \
+    --classifier classifier/celeba_disc_dlib_128_d4_bc_01.zip \
+    --model ../ALI/outputs/celeba_dlib_128_03/celeba_dlib_128_03.zip \
+    --anchor-offset  ../ALI/outputs/celeba_dlib_128_03/atvecs_balanced_20_21_31.json \
+    --anchor-indexes 2,1,_ 
+
+
+# celeba_disc_dlib_128_d4_bc_01.zip
+#    --classifier ../discgen/classifiers/celeba_dlib_128_01.zip \
+
 === debug gender, new vectors
 
 THEANORC=theanorc.mine PYTHONPATH=../faceswap:../discgen:../plat \

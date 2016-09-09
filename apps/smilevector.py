@@ -21,6 +21,7 @@ from plat.grid_layout import create_splash_grid
 # discgen related imports
 from experiments.run_classifier import create_running_graphs
 from utils.interface import DiscGenModel
+from wrapper.interface import AliModel
 import faceswap
 import numpy as np
 from PIL import Image
@@ -388,7 +389,8 @@ def check_lazy_initialize(args, dmodel, classifier, smile_offsets):
     # first get model ready
     if dmodel is None and args.model is not None:
         print('Loading saved model...')
-        dmodel = DiscGenModel(filename=args.model)
+        # dmodel = DiscGenModel(filename=args.model)
+        dmodel = AliModel(filename=args.model)
 
     # first get model ready
     if classifier is None and args.classifier is not None:
