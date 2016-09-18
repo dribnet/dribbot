@@ -209,7 +209,10 @@ def resize_to_a_good_size(infile, outfile):
     imsave(outfile, image_array_resized)
     return True, wide_image
 
-def do_convert(raw_infile, outfile, dmodel, classifier, smile_offsets, image_size, initial_steps=10, recon_steps=10, offset_steps=20, end_bumper_steps=10, check_extent=True):
+def str2bool(v):
+  return v.lower() in ("yes", "true", "t", "1")
+
+def do_convert(raw_infile, outfile, dmodel, classifier, do_smile, smile_offsets, image_size, initial_steps=10, recon_steps=10, offset_steps=20, end_bumper_steps=10, check_extent=True, wraparound=True):
     failure_return_status = False, False, False
 
     infile = resized_input_file;
@@ -252,17 +255,20 @@ def do_convert(raw_infile, outfile, dmodel, classifier, smile_offsets, image_siz
 
     # classifiy aligned as smiling or not
     classifier_function = None
-    if classifier != None:
-        print('Compiling classifier function...')
-        classifier_function = theano.function(classifier.inputs, classifier.outputs)
-        yhat = classifier_function(anchor_images[0].reshape(1,3,image_size,image_size))
-        yn = np.array(yhat[0])
-        has_smile = False
-        if(yn[0][31] >= 0.5):
-            has_smile = True
-        print("Smile detector:", yn[0][31], has_smile)
+    if do_smile is not None:
+        has_smile = not str2bool(do_smile)
     else:
-        has_smile = random.choice([True, False])
+        if classifier is not None:
+            print('Compiling classifier function...')
+            classifier_function = theano.function(classifier.inputs, classifier.outputs)
+            yhat = classifier_function(anchor_images[0].reshape(1,3,image_size,image_size))
+            yn = np.array(yhat[0])
+            has_smile = False
+            if(yn[0][31] >= 0.5):
+                has_smile = True
+            print("Smile detector:", yn[0][31], has_smile)
+        else:
+            has_smile = random.choice([True, False])
 
     # encode aligned image array as vector, apply offset
     anchor = dmodel.encode_images(anchor_images)
@@ -344,13 +350,14 @@ def do_convert(raw_infile, outfile, dmodel, classifier, smile_offsets, image_siz
             print("faceswap: too many faces in {}".format(infile))
             return failure_return_status
 
-    # copy last image back around to first
     last_sequence_index = initial_steps + recon_steps + offset_steps - 1
     last_filename = samples_sequence_filename.format(last_sequence_index)
-    first_filename = samples_sequence_filename.format(0)
-    print("wraparound file: {} -> {}".format(last_filename, first_filename))
-    copyfile(last_filename, first_filename)
-    copyfile(last_filename, final_image)
+    if wraparound:
+        # copy last image back around to first
+        first_filename = samples_sequence_filename.format(0)
+        print("wraparound file: {} -> {}".format(last_filename, first_filename))
+        copyfile(last_filename, first_filename)
+        copyfile(last_filename, final_image)
 
     # also add a final out bumper
     for i in range(last_sequence_index, last_sequence_index + end_bumper_steps):
@@ -416,6 +423,8 @@ if __name__ == "__main__":
     parser.add_argument('-d','--debug', help='Debug: do not post', default=False, action='store_true')
     parser.add_argument('-o','--open', help='Open image (when in debug mode)', default=False, action='store_true')
     parser.add_argument('-c','--creds', help='Twitter json credentials1 (smile)', default='creds.json')
+    parser.add_argument('--do-smile', default=None,
+                        help='Force smile on/off (skip classifier) [1/0]')
     parser.add_argument('-n','--no-update', dest='no_update',
             help='Do not update postion on timeline', default=False, action='store_true')
     parser.add_argument("--input-file", dest='input_file', default=None,
@@ -432,6 +441,8 @@ if __name__ == "__main__":
                         help="size of (offset) images")
     parser.add_argument('--classifier', dest='classifier', type=str,
                         default=None)
+    parser.add_argument('--no-wrap', dest="wraparound", default=True,
+                        help='Do not wraparound last image to front', action='store_false')
     args = parser.parse_args()
 
     # initialize and then lazily load
@@ -450,7 +461,7 @@ if __name__ == "__main__":
     # do debug as a special case
     if args.input_file:
         dmodel, classifier, smile_offsets = check_lazy_initialize(args, dmodel, classifier, smile_offsets)
-        result, had_smile, is_wide = do_convert(args.input_file, final_movie, dmodel, classifier, smile_offsets, args.image_size, check_extent=False)
+        result, had_smile, is_wide = do_convert(args.input_file, final_movie, dmodel, classifier, args.do_smile, smile_offsets, args.image_size, check_extent=False, wraparound=args.wraparound)
         print("result: {}, had_smile: {}".format(result, had_smile))
         if result and not args.no_update:
             input_basename = os.path.basename(args.input_file)
@@ -525,7 +536,7 @@ if __name__ == "__main__":
         else:
             dmodel, classifier, smile_offsets = check_lazy_initialize(args, dmodel, classifier, smile_offsets)
 
-            result, had_smile, is_wide = do_convert(downloaded_input, final_movie, dmodel, classifier, smile_offsets, args.image_size)
+            result, had_smile, is_wide = do_convert(downloaded_input, final_movie, dmodel, classifier, args.do_smile, smile_offsets, args.image_size)
             if had_smile:
                 post_text = u"😀⬇{}".format(tweet_suffix)
             else:

@@ -1,3 +1,31 @@
+=== nips
+
+THEANORC=theanorc.mine PYTHONPATH=../faceswap:../discgen:../plat \
+    /usr/local/bin/unbuffer /usr/local/anaconda/bin/python \
+    apps/smilevector.py \
+    --input-file bugs/nips/yann.jpg \
+    --debug \
+    --archive-subdir nips_yann_default \
+    --image-size 256 \
+    --classifier ../discgen/classifiers/celeba_dlib_256_02.zip \
+    --model ../discgen/outputs/celeba_dlib_256a_400z_d06/celeba_dlib_256a_400z_d06.zip \
+    --anchor-offset ../discgen/outputs/celeba_dlib_256a_400z_d06/atvecs2_balanced_20_21_31.json \
+    --anchor-indexes 44,43,41
+
+=== trump
+
+THEANORC=theanorc.mine PYTHONPATH=../faceswap:../discgen:../plat \
+    /usr/local/bin/unbuffer /usr/local/anaconda/bin/python \
+    apps/smilevector.py \
+    --input-file bugs/trump.jpg \
+    --debug \
+    --archive-subdir trump \
+    --image-size 256 \
+    --classifier ../discgen/classifiers/celeba_dlib_256_02.zip \
+    --model ../discgen/outputs/celeba_dlib_256a_400z_d06/celeba_dlib_256a_400z_d06.zip \
+    --anchor-offset ../discgen/outputs/celeba_dlib_256a_400z_d06/atvecs2_balanced_20_21_31.json \
+    --anchor-indexes 44,43,41
+
 === debug gender, new vectors
 
 THEANORC=theanorc.mine PYTHONPATH=../faceswap:../discgen:../plat \
