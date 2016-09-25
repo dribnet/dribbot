@@ -16,11 +16,11 @@ import random
 from subprocess import call
 
 from plat.utils import anchors_from_image, offset_from_string, get_json_vectors
-from plat.grid_layout import create_splash_grid
+from plat.grid_layout import create_mine_grid
 
 # discgen related imports
 from experiments.run_classifier import create_running_graphs
-from utils.interface import DiscGenModel
+from discgen.interface import DiscGenModel
 import faceswap
 import numpy as np
 from PIL import Image
@@ -291,7 +291,7 @@ def do_convert(raw_infile, outfile, dmodel, classifier, do_smile, smile_offsets,
     make_or_cleanup(samples_sequence_dir)
 
     # generate latents from anchors
-    z_latents = create_splash_grid(rows=1, cols=offset_steps, dim=z_dim, space=offset_steps-1, anchors=anchors, spherical=True, gaussian=False)
+    z_latents = create_mine_grid(rows=1, cols=offset_steps, dim=z_dim, space=offset_steps-1, anchors=anchors, spherical=True, gaussian=False)
     samples_array = dmodel.sample_at(z_latents)
     print("Samples array: ", samples_array.shape)
 

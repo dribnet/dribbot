@@ -1,16 +1,145 @@
+=== favor
+THEANORC=theanorc.mine \
+    PYTHONPATH=../faceswap:../discgen:../chips:../plat \
+    /usr/local/bin/unbuffer /usr/local/anaconda/bin/python \
+    apps/smilevector.py \
+    --input-file bugs/melissa_t.jpg \
+    --debug \
+    --do-smile 0 --no-wrap \
+    --archive-subdir melissa_t_nosmile \
+    --image-size 256 \
+    --classifier ../discgen/classifiers/celeba_dlib_256_02.zip \
+    --model ../discgen/outputs/celeba_dlib_256a_400z_d06/celeba_dlib_256a_400z_d06.zip \
+    --anchor-offset ../discgen/outputs/celeba_dlib_256a_400z_d06/atvecs2_balanced_20_21_31.json \
+    --anchor-indexes 44,43,41
+
 === nips
+THEANORC=theanorc.mine PYTHONPATH=../faceswap:../discgen:../plat \
+    /usr/local/bin/unbuffer /usr/local/anaconda/bin/python \
+    apps/smilevector.py \
+    --input-file bugs/nips/ruslan.jpg \
+    --debug \
+    --do-smile 1 --no-wrap \
+    --archive-subdir nips_ruslan_smile \
+    --image-size 256 \
+    --classifier ../discgen/classifiers/celeba_dlib_256_02.zip \
+    --model ../discgen/outputs/celeba_dlib_256a_400z_d06/celeba_dlib_256a_400z_d06.zip \
+    --anchor-offset ../discgen/outputs/celeba_dlib_256a_400z_d06/atvecs2_balanced_20_21_31.json \
+    --anchor-indexes 44,43,41
+cp -r temp_files/image_sequence debug/nips_ruslan_smile/.
+
+THEANORC=theanorc.mine PYTHONPATH=../faceswap:../discgen:../plat \
+    /usr/local/bin/unbuffer /usr/local/anaconda/bin/python \
+    apps/smilevector.py \
+    --input-file bugs/nips/ng.jpg \
+    --debug \
+    --no-wrap \
+    --archive-subdir nips_ng_default \
+    --image-size 256 \
+    --classifier ../discgen/classifiers/celeba_dlib_256_02.zip \
+    --model ../discgen/outputs/celeba_dlib_256a_400z_d06/celeba_dlib_256a_400z_d06.zip \
+    --anchor-offset ../discgen/outputs/celeba_dlib_256a_400z_d06/atvecs2_balanced_20_21_31.json \
+    --anchor-indexes 44,43,41
+cp -r temp_files/image_sequence debug/nips_ng_default/.
+
+THEANORC=theanorc.mine PYTHONPATH=../faceswap:../discgen:../plat \
+    /usr/local/bin/unbuffer /usr/local/anaconda/bin/python \
+    apps/smilevector.py \
+    --input-file bugs/nips/hanna.jpg \
+    --debug \
+    --no-wrap \
+    --archive-subdir nips_hanna_default \
+    --image-size 256 \
+    --classifier ../discgen/classifiers/celeba_dlib_256_02.zip \
+    --model ../discgen/outputs/celeba_dlib_256a_400z_d06/celeba_dlib_256a_400z_d06.zip \
+    --anchor-offset ../discgen/outputs/celeba_dlib_256a_400z_d06/atvecs2_balanced_20_21_31.json \
+    --anchor-indexes 44,43,41
+cp -r temp_files/image_sequence debug/nips_hanna_default/.
+
+THEANORC=theanorc.mine PYTHONPATH=../faceswap:../discgen:../plat \
+    /usr/local/bin/unbuffer /usr/local/anaconda/bin/python \
+    apps/smilevector.py \
+    --input-file bugs/nips/dean.jpg \
+    --debug \
+    --do-smile 1 --no-wrap \
+    --archive-subdir nips_dean_smile \
+    --image-size 256 \
+    --classifier ../discgen/classifiers/celeba_dlib_256_02.zip \
+    --model ../discgen/outputs/celeba_dlib_256a_400z_d06/celeba_dlib_256a_400z_d06.zip \
+    --anchor-offset ../discgen/outputs/celeba_dlib_256a_400z_d06/atvecs2_balanced_20_21_31.json \
+    --anchor-indexes 44,43,41
+cp -r temp_files/image_sequence debug/nips_dean_smile/.
+
+THEANORC=theanorc.mine PYTHONPATH=../faceswap:../discgen:../plat \
+    /usr/local/bin/unbuffer /usr/local/anaconda/bin/python \
+    apps/smilevector.py \
+    --input-file bugs/nips/dean.jpg \
+    --debug \
+    --do-smile 1 --no-wrap \
+    --archive-subdir nips_dean_open \
+    --image-size 256 \
+    --classifier ../discgen/classifiers/celeba_dlib_256_02.zip \
+    --model ../discgen/outputs/celeba_dlib_256a_400z_d06/celeba_dlib_256a_400z_d06.zip \
+    --anchor-offset ../discgen/outputs/celeba_dlib_256a_400z_d06/atvecs2_balanced_20_21_31.json \
+    --anchor-indexes _,43,41
+cp -r temp_files/image_sequence debug/nips_dean_open/.
+
+THEANORC=theanorc.mine PYTHONPATH=../faceswap:../discgen:../plat \
+    /usr/local/bin/unbuffer /usr/local/anaconda/bin/python \
+    apps/smilevector.py \
+    --input-file bugs/nips/qi-yu.jpg \
+    --debug \
+    --do-smile 1 --no-wrap \
+    --archive-subdir nips_qiyu_open \
+    --image-size 256 \
+    --classifier ../discgen/classifiers/celeba_dlib_256_02.zip \
+    --model ../discgen/outputs/celeba_dlib_256a_400z_d06/celeba_dlib_256a_400z_d06.zip \
+    --anchor-offset ../discgen/outputs/celeba_dlib_256a_400z_d06/atvecs2_balanced_20_21_31.json \
+    --anchor-indexes _,43,41
+cp -r temp_files/image_sequence debug/nips_qiyu_open/.
+
+THEANORC=theanorc.mine PYTHONPATH=../faceswap:../discgen:../plat \
+    /usr/local/bin/unbuffer /usr/local/anaconda/bin/python \
+    apps/smilevector.py \
+    --input-file bugs/nips/qi-yu.jpg \
+    --debug \
+    --do-smile 1 --no-wrap \
+    --archive-subdir nips_qiyu_smile \
+    --image-size 256 \
+    --classifier ../discgen/classifiers/celeba_dlib_256_02.zip \
+    --model ../discgen/outputs/celeba_dlib_256a_400z_d06/celeba_dlib_256a_400z_d06.zip \
+    --anchor-offset ../discgen/outputs/celeba_dlib_256a_400z_d06/atvecs2_balanced_20_21_31.json \
+    --anchor-indexes 44,43,41
+cp -r temp_files/image_sequence debug/nips_qiyu_smile/.
+montage -geometry +0+0 -tile 9x1 debug/nips_qiyu_smile/image_sequence/*[05].png debug/nips_qiyu_smile/image_sequence/montage.png
 
 THEANORC=theanorc.mine PYTHONPATH=../faceswap:../discgen:../plat \
     /usr/local/bin/unbuffer /usr/local/anaconda/bin/python \
     apps/smilevector.py \
     --input-file bugs/nips/yann.jpg \
     --debug \
-    --archive-subdir nips_yann_default \
+    --do-smile 1 --no-wrap \
+    --archive-subdir nips_yann_dynamic4 \
     --image-size 256 \
-    --classifier ../discgen/classifiers/celeba_dlib_256_02.zip \
     --model ../discgen/outputs/celeba_dlib_256a_400z_d06/celeba_dlib_256a_400z_d06.zip \
-    --anchor-offset ../discgen/outputs/celeba_dlib_256a_400z_d06/atvecs2_balanced_20_21_31.json \
-    --anchor-indexes 44,43,41
+    --anchor-offset ../discgen/outputs/oneshot/engineer_pair4_diff_vector.json \
+    --anchor-indexes 0,_,_
+cp -r temp_files/image_sequence debug/nips_yann_dynamic4/.
+montage -geometry +0+0 -tile 9x1 debug/nips_yann_dynamic4/image_sequence/*[05].png debug/nips_yann_dynamic4/image_sequence/montage.png
+
+THEANORC=theanorc.mine PYTHONPATH=../faceswap:../discgen:../plat \
+    /usr/local/bin/unbuffer /usr/local/anaconda/bin/python \
+    apps/smilevector.py \
+    --input-file bugs/nips/bengio2.jpg \
+    --debug \
+    --do-smile 1 --no-wrap \
+    --archive-subdir nips_bengio2_dynamic5 \
+    --image-size 256 \
+    --model ../discgen/outputs/celeba_dlib_256a_400z_d06/celeba_dlib_256a_400z_d06.zip \
+    --anchor-offset ../discgen/outputs/oneshot/engineer_pair4_diff_vector.json \
+    --anchor-indexes 0,_,_
+cp -r temp_files/image_sequence debug/nips_bengio2_dynamic5/.
+montage -geometry +0+0 -tile 9x1 debug/nips_bengio2_dynamic5/image_sequence/*[05].png debug/nips_bengio2_dynamic5/image_sequence/montage.png
 
 === trump
 
