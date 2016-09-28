@@ -21,7 +21,8 @@ from plat.grid_layout import create_mine_grid
 # discgen related imports
 from experiments.run_classifier import create_running_graphs
 from discgen.interface import DiscGenModel
-import faceswap
+from faceswap import doalign
+import faceswap.core
 import numpy as np
 from PIL import Image
 from scipy.misc import imread, imsave, imresize
@@ -225,20 +226,21 @@ def do_convert(raw_infile, outfile, dmodel, classifier, do_smile, smile_offsets,
     try:
         if not doalign.align_face(infile, aligned_file, image_size, max_extension_amount=0):
             return failure_return_status
-    except:
+    except Exception as e:
         # get_landmarks strangely fails sometimes (see bad_shriek test image)
+        print("faceswap: doalign failure {}".format(e))
         return failure_return_status
 
     # go ahead and cache the main (body) image and landmarks, and fail if face is too big
     try:
         body_image_array = imread(infile, mode='RGB')
         print(body_image_array.shape)
-        body_landmarks = faceswap.get_landmarks(body_image_array)
-        max_extent = faceswap.get_max_extent(body_landmarks)
-    except faceswap.NoFaces:
+        body_landmarks = faceswap.core.get_landmarks(body_image_array)
+        max_extent = faceswap.core.get_max_extent(body_landmarks)
+    except faceswap.core.NoFaces:
         print("faceswap: no faces in {}".format(infile))
         return failure_return_status
-    except faceswap.TooManyFaces:
+    except faceswap.core.TooManyFaces:
         print("faceswap: too many faces in {}".format(infile))
         return failure_return_status
     if check_extent and max_extent > max_allowable_extent:
@@ -307,16 +309,16 @@ def do_convert(raw_infile, outfile, dmodel, classifier, do_smile, smile_offsets,
         # face_image_array = (255 * np.dstack(sample)).astype(np.uint8)
         face_image_array = (255 * np.dstack(sample)).astype(np.uint8)
         imsave(recon_file, face_image_array)
-        # face_landmarks = faceswap.get_landmarks(face_image_array)
-        # faceswap.do_faceswap_from_face(infile, face_image_array, face_landmarks, swapped_file)
-        faceswap.do_faceswap(infile, recon_file, swapped_file)
+        # face_landmarks = faceswap.core.get_landmarks(face_image_array)
+        # faceswap.core.do_faceswap_from_face(infile, face_image_array, face_landmarks, swapped_file)
+        faceswap.core.do_faceswap(infile, recon_file, swapped_file)
         print("swapped file: {}".format(swapped_file))
         recon_array = imread(swapped_file, mode='RGB')
-    except faceswap.NoFaces:
+    except faceswap.core.NoFaces:
         print("faceswap: no faces when generating swapped file {}".format(infile))
         imsave(debug_file, face_image_array)
         return failure_return_status
-    except faceswap.TooManyFaces:
+    except faceswap.core.TooManyFaces:
         print("faceswap: too many faces in {}".format(infile))
         return failure_return_status
 
@@ -337,16 +339,16 @@ def do_convert(raw_infile, outfile, dmodel, classifier, do_smile, smile_offsets,
             face_image_array = (255 * np.dstack(sample)).astype(np.uint8)
             # if i == final_face_index:
             #     imsave(transformed_file, face_image_array)
-            face_landmarks = faceswap.get_landmarks(face_image_array)
+            face_landmarks = faceswap.core.get_landmarks(face_image_array)
             filename = samples_sequence_filename.format(cur_index)
             imsave(transformed_file, face_image_array)
-            # faceswap.do_faceswap_from_face(infile, face_image_array, face_landmarks, filename)
-            faceswap.do_faceswap(infile, transformed_file, filename)
+            # faceswap.core.do_faceswap_from_face(infile, face_image_array, face_landmarks, filename)
+            faceswap.core.do_faceswap(infile, transformed_file, filename)
             print("generated file: {}".format(filename))
-        except faceswap.NoFaces:
+        except faceswap.core.NoFaces:
             print("faceswap: no faces in {}".format(infile))
             return failure_return_status
-        except faceswap.TooManyFaces:
+        except faceswap.core.TooManyFaces:
             print("faceswap: too many faces in {}".format(infile))
             return failure_return_status
 
@@ -390,7 +392,7 @@ def check_status(r):
 
 def check_lazy_initialize(args, dmodel, classifier, smile_offsets):
     # debug: don't load anything...
-    # return model, classifier, smile_offsets
+    # return dmodel, classifier, smile_offsets
 
     # first get model ready
     if dmodel is None and args.model is not None:

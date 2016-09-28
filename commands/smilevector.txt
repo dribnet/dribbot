@@ -1,12 +1,12 @@
 === favor
 THEANORC=theanorc.mine \
-    PYTHONPATH=../faceswap:../discgen:../chips:../plat \
+    PYTHONPATH=../faceswap:../discgen:../chips:../plat:. \
     /usr/local/bin/unbuffer /usr/local/anaconda/bin/python \
     apps/smilevector.py \
     --input-file bugs/melissa_t.jpg \
     --debug \
     --do-smile 0 --no-wrap \
-    --archive-subdir melissa_t_nosmile \
+    --archive-subdir melissa_t_nosmile2 \
     --image-size 256 \
     --classifier ../discgen/classifiers/celeba_dlib_256_02.zip \
     --model ../discgen/outputs/celeba_dlib_256a_400z_d06/celeba_dlib_256a_400z_d06.zip \
