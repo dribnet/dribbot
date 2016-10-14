@@ -1,3 +1,30 @@
+=== model update
+:: 256
+PYTHONPATH=../faceswap:../discgen:../plat:. \
+    unbuffer python \
+    apps/smilevector.py \
+    --input-file inputs/pm.png \
+    --debug \
+    --archive-subdir pm_happy_unblur_256_01 \
+    --image-size 256 \
+    --classifier ../discgen/models/celeba_classifier_dlib_256_d4_02/celeba_classifier_dlib_256_d4_02.zip \
+    --model ../discgen/models/celeba_dlib_256_320z_d5_10/celeba_dlib_256_320z_d5_10.zip \
+    --anchor-offset ../discgen/models/celeba_dlib_256_320z_d5_10/atvec_happy_blur2.json \
+    --anchor-indexes 0,_,1
+
+:: 128
+PYTHONPATH=../faceswap:../discgen:../plat:. \
+    unbuffer python \
+    apps/smilevector.py \
+    --input-file inputs/pm.png \
+    --debug \
+    --archive-subdir pm_rafd_happy_128 \
+    --image-size 128 \
+    --classifier ../discgen/models/celeba_classifier_dlib_128_d4_01/celeba_classifier_dlib_128_d4_01.zip \
+    --model ../discgen/models/celeba_dlib_128_240z_d4_06/celeba_dlib_128_240z_d4_06.zip \
+    --anchor-offset ../discgen/models/celeba_dlib_128_240z_d4_06/atvec_rafd_happy.json \
+    --anchor-indexes 0,_,_
+
 === favor
 THEANORC=theanorc.mine \
     PYTHONPATH=../faceswap:../discgen:../chips:../plat:. \

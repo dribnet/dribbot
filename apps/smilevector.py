@@ -11,7 +11,6 @@ import urllib
 import urlparse, os
 from shutil import copyfile
 import os
-import doalign
 import random
 from subprocess import call
 
@@ -19,7 +18,7 @@ from plat.utils import anchors_from_image, offset_from_string, get_json_vectors
 from plat.grid_layout import create_mine_grid
 
 # discgen related imports
-from experiments.run_classifier import create_running_graphs
+from discgen.bin.run_classifier import create_running_graphs
 from discgen.interface import DiscGenModel
 from faceswap import doalign
 import faceswap.core
@@ -369,7 +368,7 @@ def do_convert(raw_infile, outfile, dmodel, classifier, do_smile, smile_offsets,
 
     if os.path.exists(movie_file):
         os.remove(movie_file)
-    command = "/usr/local/bin/ffmpeg -r 20 -f image2 -i \"{}\" -c:v libx264 -crf 20 -pix_fmt yuv420p -tune fastdecode -y -tune zerolatency -profile:v baseline {}".format(ffmpeg_sequence_filename, movie_file)
+    command = "/usr/bin/ffmpeg -r 20 -f image2 -i \"{}\" -c:v libx264 -crf 20 -pix_fmt yuv420p -tune fastdecode -y -tune zerolatency -profile:v baseline {}".format(ffmpeg_sequence_filename, movie_file)
     print("ffmpeg command: {}".format(command))
     result = os.system(command)
     if result != 0:
@@ -412,8 +411,8 @@ def check_lazy_initialize(args, dmodel, classifier, smile_offsets):
         smile_offset_smile = offset_from_string(offset_indexes[0], offsets, dim)
         smile_offset_open = offset_from_string(offset_indexes[1], offsets, dim)
         smile_offset_blur = offset_from_string(offset_indexes[2], offsets, dim)
-        pos_smile_offset = 1 * smile_offset_open + 1.25 * smile_offset_smile + 1.0 * smile_offset_blur
-        neg_smile_offset = -1 * smile_offset_open - 1.25 * smile_offset_smile + 1.0 * smile_offset_blur
+        pos_smile_offset = 1 * smile_offset_open + 1 * smile_offset_smile - 1 * smile_offset_blur
+        neg_smile_offset = -1 * smile_offset_open - 1 * smile_offset_smile - 1 * smile_offset_blur
         smile_offsets = [pos_smile_offset, neg_smile_offset]
 
     return dmodel, classifier, smile_offsets
