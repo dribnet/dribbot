@@ -234,7 +234,7 @@ def do_convert(raw_infile, outfile, dmodel, classifier, do_smile, smile_offsets,
     try:
         body_image_array = imread(infile, mode='RGB')
         print(body_image_array.shape)
-        body_landmarks = faceswap.core.get_landmarks(body_image_array)
+        body_rect, body_landmarks = faceswap.core.get_landmarks(body_image_array)
         max_extent = faceswap.core.get_max_extent(body_landmarks)
     except faceswap.core.NoFaces:
         print("faceswap: no faces in {}".format(infile))
@@ -338,7 +338,7 @@ def do_convert(raw_infile, outfile, dmodel, classifier, do_smile, smile_offsets,
             face_image_array = (255 * np.dstack(sample)).astype(np.uint8)
             # if i == final_face_index:
             #     imsave(transformed_file, face_image_array)
-            face_landmarks = faceswap.core.get_landmarks(face_image_array)
+            face_rect, face_landmarks = faceswap.core.get_landmarks(face_image_array)
             filename = samples_sequence_filename.format(cur_index)
             imsave(transformed_file, face_image_array)
             # faceswap.core.do_faceswap_from_face(infile, face_image_array, face_landmarks, filename)
