@@ -3,6 +3,7 @@
 
 import tweepy
 from TwitterAPI import TwitterAPI
+from TwitterAPI.TwitterError import TwitterConnectionError
 import json
 import argparse
 import sys
@@ -90,6 +91,8 @@ final_image = "temp_files/final_image.png"
 optimal_input = "temp_files/optimal_input_file.png"
 # optimal output file
 optimal_output = "temp_files/optimal_output_file.png"
+# enhanced output file
+enhanced_output = "temp_files/optimal_output_file_ne2x.png"
 
 # the interpolated sequence is saved into this directory
 sequence_dir = "temp_files/image_sequence/"
@@ -120,6 +123,7 @@ archive_final_image = "final_image.png"
 archive_final_movie = "final_movie.mp4"
 archive_optimal_input = "optimal_input.png"
 archive_optimal_output = "optimal_output.png"
+archive_enhanced_output = "enhanced_output.png"
 
 def archive_post(subdir, posted_id, original_text, post_text, respond_text, downloaded_basename, downloaded_input, final_movie, archive_dir="archives"):
     # setup paths
@@ -135,6 +139,7 @@ def archive_post(subdir, posted_id, original_text, post_text, respond_text, down
     archive_final_movie_path = "{}/{}".format(archive_dir, archive_final_movie)
     archive_optimal_input_path = "{}/{}".format(archive_dir, archive_optimal_input)
     archive_optimal_output_path = "{}/{}".format(archive_dir, archive_optimal_output)
+    archive_enhanced_output_path = "{}/{}".format(archive_dir, archive_enhanced_output)
 
     # prepare output directory
     make_or_cleanup(archive_dir)
@@ -160,6 +165,7 @@ def archive_post(subdir, posted_id, original_text, post_text, respond_text, down
     copyfile(final_image, archive_final_image_path)
     copyfile(optimal_input, archive_optimal_input_path)
     copyfile(optimal_output, archive_optimal_output_path)
+    copyfile(enhanced_output, archive_enhanced_output_path)
 
 max_extent = 720
 def resize_to_a_good_size(infile, outfile):
@@ -451,6 +457,14 @@ def check_lazy_initialize(args, dmodel, classifier, smile_offsets):
 
     return dmodel, classifier, smile_offsets
 
+def enhance_optimal_output():
+    command = "/usr/local/anaconda2/envs/enhance/bin/python ../neural-enhance/enhance.py temp_files/optimal_output_file.png --model dlib_256_s3 --zoom 2"
+    result = os.system(command)
+    if result != 0:
+        # failure
+        return False
+    return True
+
 if __name__ == "__main__":
     # argparse
     parser = argparse.ArgumentParser(description='Follow account and repost munged images')
@@ -462,6 +476,8 @@ if __name__ == "__main__":
                         help='Force smile on/off (skip classifier) [1/0]')
     parser.add_argument('-n','--no-update', dest='no_update',
             help='Do not update postion on timeline', default=False, action='store_true')
+    parser.add_argument('--post-image', dest='post_image',
+            help='Always post an image (not a movie)', default=False, action='store_true')
     parser.add_argument("--input-file", dest='input_file', default=None,
                         help="single image file input (for debugging)")
     parser.add_argument("--archive-subdir", dest='archive_subdir', default=None,
@@ -497,10 +513,10 @@ if __name__ == "__main__":
     if args.input_file:
         dmodel, classifier, smile_offsets = check_lazy_initialize(args, dmodel, classifier, smile_offsets)
         result, had_smile, is_wide = do_convert(args.input_file, final_movie, dmodel, classifier, args.do_smile, smile_offsets, args.image_size, check_extent=False, wraparound=args.wraparound)
+        dmodel, classifier, smile_offsets = None, None, None
         if result:
-            dmodel = None
-            classifier = None
-            smile_offsets = None
+            result = enhance_optimal_output()
+
         print("result: {}, had_smile: {}".format(result, had_smile))
         if result and not args.no_update:
             input_basename = os.path.basename(args.input_file)
@@ -577,10 +593,9 @@ if __name__ == "__main__":
 
             result, had_smile, is_wide = do_convert(downloaded_input, final_movie, dmodel, classifier, args.do_smile, smile_offsets, args.image_size)
 
+            dmodel, classifier, smile_offsets = None, None, None
             if result:
-                dmodel = None
-                classifier = None
-                smile_offsets = None
+                result = enhance_optimal_output()
 
             if had_smile:
                 post_text = u"😀⬇{}".format(tweet_suffix)
@@ -609,13 +624,13 @@ if __name__ == "__main__":
                 while update_response is None:
                     try:
                         bytes_sent = 0
-                        if is_wide:
+                        if not args.post_image and is_wide:
                             total_bytes = os.path.getsize(final_movie)
                             file = open(final_movie, 'rb')
                             r = twitter_api.request('media/upload', {'command':'INIT', 'media_type':'video/mp4', 'total_bytes':total_bytes})
                         else:
-                            total_bytes = os.path.getsize(final_image)
-                            file = open(final_image, 'rb')
+                            total_bytes = os.path.getsize(enhanced_output)
+                            file = open(enhanced_output, 'rb')
                             r = twitter_api.request('media/upload', {'command':'INIT', 'media_type':'image/png', 'total_bytes':total_bytes})
                         check_status(r)
 
@@ -639,7 +654,7 @@ if __name__ == "__main__":
                         check_status(r)
 
                         update_response = r
-                    except TwitterAPIFail:
+                    except (TwitterAPIFail, TwitterConnectionError) as e:
                         num_upload_failures = num_upload_failures + 1
                         if num_upload_failures >= max_upload_failures:
                             print("----> TWITTER FAILED {} TIMES, exiting".format(num_upload_failures))
