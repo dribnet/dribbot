@@ -1,3 +1,29 @@
+=== surprise
+PYTHONPATH=../faceswap:../discgen:../plat:. \
+    unbuffer python \
+    apps/smilevector.py \
+    --input-file ../dribbot_prod/archives/20161017_123622/input_image.jpg \
+    --image-size 256 \
+    --do-smile 1 \
+    --classifier ../discgen/models/celeba_classifier_dlib_256_d4_02/celeba_classifier_dlib_256_d4_02.zip \
+    --model ../discgen/models/celeba_dlib_256_320z_d5_10/celeba_dlib_256_320z_d5_10.zip \
+    --anchor-offset ../discgen/models/celeba_dlib_256_320z_d5_10/atvec_surprise_blur2.json \
+    --anchor-indexes 0,_,1
+
+=== model update
+:: 256
+PYTHONPATH=../faceswap:../discgen:../plat:. \
+    unbuffer python \
+    apps/smilevector.py \
+    --input-file inputs/zoe.jpg \
+    --debug \
+    --archive-subdir zoe_surprise_01 \
+    --image-size 256 \
+    --classifier ../discgen/models/celeba_classifier_dlib_256_d4_02/celeba_classifier_dlib_256_d4_02.zip \
+    --model ../discgen/models/celeba_dlib_256_320z_d5_10/celeba_dlib_256_320z_d5_10.zip \
+    --anchor-offset ../discgen/models/celeba_dlib_256_320z_d5_10/atvec_surprise_blur2.json \
+    --anchor-indexes 0,_,1
+
 === model update
 :: 256
 PYTHONPATH=../faceswap:../discgen:../plat:. \
