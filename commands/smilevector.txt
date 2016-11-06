@@ -2,9 +2,9 @@
 PYTHONPATH=../faceswap:../discgen:../plat:. \
     unbuffer python \
     apps/smilevector.py \
-    --input-file inputs/zoe.jpg \
+    --input-file inputs/piano.jpg \
     --debug \
-    --archive-subdir zoe_optimal1 \
+    --archive-subdir piano_optimal1 \
     --image-size 256 \
     --classifier ../discgen/models/celeba_classifier_dlib_256_d4_02/celeba_classifier_dlib_256_d4_02.zip \
     --model ../discgen/models/celeba_dlib_256_320z_d5_10/celeba_dlib_256_320z_d5_10.zip \
