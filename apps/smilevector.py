@@ -71,6 +71,7 @@ def add_to_recent(infile, comment, recentfile, limit=500):
 
 max_allowable_extent = 180
 min_allowable_extent = 60
+optimal_extent = 128
 # reized input file
 resized_input_file = "temp_files/resized_input_file.png"
 # the input image file is algined and saved
@@ -85,6 +86,11 @@ swapped_file = "temp_files/swapped_file.png"
 debug_file = "temp_files/debug.png"
 # this is the final swapped image
 final_image = "temp_files/final_image.png"
+# optimal input file
+optimal_input = "temp_files/optimal_input_file.png"
+# optimal output file
+optimal_output = "temp_files/optimal_output_file.png"
+
 # the interpolated sequence is saved into this directory
 sequence_dir = "temp_files/image_sequence/"
 # template for output png files
@@ -112,6 +118,8 @@ archive_transformed = "transformed.png"
 archive_swapped = "swapped.png"
 archive_final_image = "final_image.png"
 archive_final_movie = "final_movie.mp4"
+archive_optimal_input = "optimal_input.png"
+archive_optimal_output = "optimal_output.png"
 
 def archive_post(subdir, posted_id, original_text, post_text, respond_text, downloaded_basename, downloaded_input, final_movie, archive_dir="archives"):
     # setup paths
@@ -125,6 +133,8 @@ def archive_post(subdir, posted_id, original_text, post_text, respond_text, down
     archive_swapped_path = "{}/{}".format(archive_dir, archive_swapped)
     archive_final_image_path = "{}/{}".format(archive_dir, archive_final_image)
     archive_final_movie_path = "{}/{}".format(archive_dir, archive_final_movie)
+    archive_optimal_input_path = "{}/{}".format(archive_dir, archive_optimal_input)
+    archive_optimal_output_path = "{}/{}".format(archive_dir, archive_optimal_output)
 
     # prepare output directory
     make_or_cleanup(archive_dir)
@@ -148,7 +158,8 @@ def archive_post(subdir, posted_id, original_text, post_text, respond_text, down
     copyfile(transformed_file, archive_transformed_path)
     copyfile(swapped_file, archive_swapped_path)
     copyfile(final_image, archive_final_image_path)
-    copyfile(final_movie, archive_final_movie_path)
+    copyfile(optimal_input, archive_optimal_input_path)
+    copyfile(optimal_output, archive_optimal_output_path)
 
 max_extent = 720
 def resize_to_a_good_size(infile, outfile):
@@ -193,6 +204,7 @@ def resize_to_a_good_size(infile, outfile):
         new_w = int(scale_down * w)
         new_h = int(scale_down * h)
     else:
+        scale_down = 1.0
         new_w = w
         new_h = h
 
@@ -207,7 +219,23 @@ def resize_to_a_good_size(infile, outfile):
     print("resizing from {},{} to {},{}".format(w, h, new_w, new_h))
     image_array_resized = imresize(image_array, (new_h, new_w))
     imsave(outfile, image_array_resized)
-    return True, wide_image
+    return True, wide_image, scale_down
+
+def resize_to_optimal(infile, scale_ratio, rect, outfile):
+    image_array = imread(infile, mode='RGB')
+    im_shape = image_array.shape
+    h, w, _ = im_shape
+
+    width = float(rect.right()-rect.left())
+    scale_amount = optimal_extent / (width * scale_ratio)
+    new_w = int(scale_amount * w)
+    new_h = int(scale_amount * h)
+    new_w = new_w - (new_w % 4)
+    new_h = new_h - (new_h % 4)
+
+    print("optimal resize from {},{} to {},{}".format(w, h, new_w, new_h))
+    image_array_resized = imresize(image_array, (new_h, new_w))
+    imsave(outfile, image_array_resized)
 
 def str2bool(v):
   return v.lower() in ("yes", "true", "t", "1")
@@ -217,7 +245,7 @@ def do_convert(raw_infile, outfile, dmodel, classifier, do_smile, smile_offsets,
 
     infile = resized_input_file;
 
-    did_resize, wide_image = resize_to_a_good_size(raw_infile, infile)
+    did_resize, wide_image, scale_ratio = resize_to_a_good_size(raw_infile, infile)
     if not did_resize:
         return failure_return_status
 
@@ -250,6 +278,9 @@ def do_convert(raw_infile, outfile, dmodel, classifier, do_smile, smile_offsets,
         return failure_return_status
     else:
         print("face not too large: {}".format(max_extent))
+
+    # save optimally scaled input
+    resize_to_optimal(raw_infile, scale_ratio, body_rect, optimal_input)
 
     # read in aligned file to image array
     _, _, anchor_images = anchors_from_image(aligned_file, image_size=(image_size, image_size))
@@ -366,6 +397,9 @@ def do_convert(raw_infile, outfile, dmodel, classifier, do_smile, smile_offsets,
         copyfile(last_filename, filename)
         print("end bumper file: {}".format(filename))
 
+    # save optimal swapped output
+    faceswap.core.do_faceswap(optimal_input, transformed_file, optimal_output)
+
     if os.path.exists(movie_file):
         os.remove(movie_file)
     command = "/usr/bin/ffmpeg -r 20 -f image2 -i \"{}\" -c:v libx264 -crf 20 -pix_fmt yuv420p -tune fastdecode -y -tune zerolatency -profile:v baseline {}".format(ffmpeg_sequence_filename, movie_file)
@@ -463,6 +497,10 @@ if __name__ == "__main__":
     if args.input_file:
         dmodel, classifier, smile_offsets = check_lazy_initialize(args, dmodel, classifier, smile_offsets)
         result, had_smile, is_wide = do_convert(args.input_file, final_movie, dmodel, classifier, args.do_smile, smile_offsets, args.image_size, check_extent=False, wraparound=args.wraparound)
+        if result:
+            dmodel = None
+            classifier = None
+            smile_offsets = None
         print("result: {}, had_smile: {}".format(result, had_smile))
         if result and not args.no_update:
             input_basename = os.path.basename(args.input_file)
@@ -538,6 +576,12 @@ if __name__ == "__main__":
             dmodel, classifier, smile_offsets = check_lazy_initialize(args, dmodel, classifier, smile_offsets)
 
             result, had_smile, is_wide = do_convert(downloaded_input, final_movie, dmodel, classifier, args.do_smile, smile_offsets, args.image_size)
+
+            if result:
+                dmodel = None
+                classifier = None
+                smile_offsets = None
+
             if had_smile:
                 post_text = u"😀⬇{}".format(tweet_suffix)
             else:
