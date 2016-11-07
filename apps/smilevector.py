@@ -309,13 +309,22 @@ def do_convert(raw_infile, outfile, dmodel, classifier, do_smile, smile_offsets,
             has_smile = random.choice([True, False])
 
     # encode aligned image array as vector, apply offset
-    anchor = dmodel.encode_images(anchor_images)
+    encoded = dmodel.encode_images(anchor_images)[0]
+
+    smile_vector = smile_offsets[0]
+    deblur_vector = smile_offsets[1]
+    smile_score = np.dot(smile_vector, encoded)
+    smile_detected = (smile_score > 0)
+    print("Smile vector detector:", smile_score, smile_detected)
+    if do_smile is None:
+        has_smile = smile_detected
+
     if has_smile:
         print("Smile detected, removing")
-        chosen_anchor = [anchor[0], anchor[0] + smile_offsets[1]]
+        chosen_anchor = [encoded, encoded - smile_vector + deblur_vector]
     else:
         print("Smile not detected, providing")
-        chosen_anchor = [anchor[0], anchor[0] + smile_offsets[0]]
+        chosen_anchor = [encoded, encoded + smile_vector + deblur_vector]
 
     z_dim = dmodel.get_zdim()
 
@@ -439,9 +448,9 @@ def check_lazy_initialize(args, dmodel, classifier, smile_offsets):
         dmodel = DiscGenModel(filename=args.model)
 
     # first get model ready
-    if classifier is None and args.classifier is not None:
-        print('Loading saved classifier...')
-        classifier = create_running_graphs(args.classifier)
+    # if classifier is None and args.classifier is not None:
+    #     print('Loading saved classifier...')
+    #     classifier = create_running_graphs(args.classifier)
 
     # get attributes
     if smile_offsets is None and args.anchor_offset is not None:
@@ -451,9 +460,11 @@ def check_lazy_initialize(args, dmodel, classifier, smile_offsets):
         smile_offset_smile = offset_from_string(offset_indexes[0], offsets, dim)
         smile_offset_open = offset_from_string(offset_indexes[1], offsets, dim)
         smile_offset_blur = offset_from_string(offset_indexes[2], offsets, dim)
-        pos_smile_offset = 1 * smile_offset_open + 1 * smile_offset_smile - 1 * smile_offset_blur
-        neg_smile_offset = -1 * smile_offset_open - 1 * smile_offset_smile - 1 * smile_offset_blur
-        smile_offsets = [pos_smile_offset, neg_smile_offset]
+        smile_vector = 1 * smile_offset_open + 1 * smile_offset_smile
+        deblur_vector = - 1 * smile_offset_blur
+        # pos_smile_offset = 1 * smile_offset_open + 1 * smile_offset_smile - 1 * smile_offset_blur
+        # neg_smile_offset = -1 * smile_offset_open - 1 * smile_offset_smile - 1 * smile_offset_blur
+        smile_offsets = [smile_vector, deblur_vector]
 
     return dmodel, classifier, smile_offsets
 

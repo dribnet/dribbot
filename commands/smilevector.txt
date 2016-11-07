@@ -28,14 +28,24 @@ PYTHONPATH=../faceswap:../discgen:../plat:. \
 PYTHONPATH=../faceswap:../discgen:../plat:. \
     unbuffer python \
     apps/smilevector.py \
-    --input-file inputs/zoe.jpg \
+    --input-file inputs/queen.png \
     --debug \
-    --archive-subdir zoe_surprise_01 \
+    --archive-subdir queen_detector_03 \
     --image-size 256 \
-    --classifier ../discgen/models/celeba_classifier_dlib_256_d4_02/celeba_classifier_dlib_256_d4_02.zip \
     --model ../discgen/models/celeba_dlib_256_320z_d5_10/celeba_dlib_256_320z_d5_10.zip \
-    --anchor-offset ../discgen/models/celeba_dlib_256_320z_d5_10/atvec_surprise_blur2.json \
+    --anchor-offset ../discgen/models/celeba_dlib_256_320z_d5_10/atvec_happy_blur2.json \
     --anchor-indexes 0,_,1
+
+#    --classifier ../discgen/models/celeba_classifier_dlib_256_d4_02/celeba_classifier_dlib_256_d4_02.zip \
+# queen
+('Smile detector:', 0.98242927, True)
+('Smile vector detector:', 58.671774060574251, True)
+# pm
+('Smile detector:', 0.0050146412, False)
+('Smile vector detector:', -32.429575395441717, False)
+# zoe
+('Smile detector:', 0.2733174, False)
+('Smile vector detector:', -29.921835197776442, False)
 
 === model update
 :: 256
