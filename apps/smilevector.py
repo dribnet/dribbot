@@ -92,7 +92,7 @@ optimal_input = "temp_files/optimal_input_file.png"
 # optimal output file
 optimal_output = "temp_files/optimal_output_file.png"
 # enhanced output file
-enhanced_output = "temp_files/enhanced.png"
+enhanced_output = "temp_files/optimal_output_file_ne1x.png"
 
 # the interpolated sequence is saved into this directory
 sequence_dir = "temp_files/image_sequence/"
@@ -469,16 +469,16 @@ def check_lazy_initialize(args, dmodel, classifier, smile_offsets):
     return dmodel, classifier, smile_offsets
 
 def enhance_optimal_output():
-    command = "/usr/local/anaconda2/envs/enhance/bin/python ../neural-enhance/enhance.py temp_files/optimal_output_file.png --model dlib_256_s3 --zoom 2"
+    command = "/usr/local/anaconda2/envs/enhance/bin/python ../neural-enhance/enhance.py temp_files/optimal_output_file.png --model dlib_256_s4 --zoom 1"
     result = os.system(command)
     if result != 0:
         # failure
         return False
-    command = "convert temp_files/optimal_output_file_ne2x.png -resize 50% temp_files/enhanced.png"
-    result = os.system(command)
-    if result != 0:
-        # failure
-        return False
+    # command = "convert temp_files/optimal_output_file_ne2x.png -resize 50% temp_files/enhanced.png"
+    # result = os.system(command)
+    # if result != 0:
+    #     # failure
+    #     return False
     return True
 
 if __name__ == "__main__":
