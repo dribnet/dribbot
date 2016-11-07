@@ -529,7 +529,6 @@ if __name__ == "__main__":
     if args.input_file:
         dmodel, classifier, smile_offsets = check_lazy_initialize(args, dmodel, classifier, smile_offsets)
         result, had_smile, is_wide = do_convert(args.input_file, final_movie, dmodel, classifier, args.do_smile, smile_offsets, args.image_size, check_extent=False, wraparound=args.wraparound)
-        dmodel, classifier, smile_offsets = None, None, None
         if result:
             result = enhance_optimal_output()
 
@@ -609,7 +608,6 @@ if __name__ == "__main__":
 
             result, had_smile, is_wide = do_convert(downloaded_input, final_movie, dmodel, classifier, args.do_smile, smile_offsets, args.image_size)
 
-            dmodel, classifier, smile_offsets = None, None, None
             if result:
                 result = enhance_optimal_output()
 
