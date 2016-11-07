@@ -233,13 +233,13 @@ def resize_to_optimal(infile, scale_ratio, rect, outfile):
     h, w, _ = im_shape
 
     width = float(rect.right()-rect.left())
-    scale_amount = optimal_extent / (width * scale_ratio)
+    scale_amount = (optimal_extent * scale_ratio) / width
     new_w = int(scale_amount * w)
     new_h = int(scale_amount * h)
     new_w = new_w - (new_w % 4)
     new_h = new_h - (new_h % 4)
 
-    print("optimal resize from {},{} to {},{}".format(w, h, new_w, new_h))
+    print("optimal resize of width {} and ratio {} went from {},{} to {},{}".format(width, scale_ratio, w, h, new_w, new_h))
     image_array_resized = imresize(image_array, (new_h, new_w))
     imsave(outfile, image_array_resized)
 
