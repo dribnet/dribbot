@@ -168,8 +168,7 @@ def archive_post(subdir, posted_id, original_text, post_text, respond_text, down
     copyfile(optimal_output, archive_optimal_output_path)
     copyfile(enhanced_output, archive_enhanced_output_path)
 
-max_initial_extent = 960
-max_movie_extent = 720
+max_initial_extent = 1024
 # returns [True, movie_compatible, scale_down_ratio]
 def resize_to_a_good_size(infile, outfile):
     image_array = imread(infile, mode='RGB')
@@ -252,17 +251,28 @@ def check_movie_compatible(shape):
     # maximum twitter aspect ratio for a movie is 239:100
     elif w > 2.3 * h:
         return False
-    elif w > max_movie_extent:
-        return False
     else:
         return True
 
 def str2bool(v):
   return v.lower() in ("yes", "true", "t", "1")
 
+def enhance_optimal_output():
+    command = "/usr/local/anaconda2/envs/enhance/bin/python ../neural-enhance/enhance.py temp_files/optimal_output_file.png --model dlib_256_s6 --zoom 1"
+    result = os.system(command)
+    if result != 0:
+        # failure
+        return False
+    # command = "convert temp_files/optimal_output_file_ne2x.png -resize 50% temp_files/enhanced.png"
+    # result = os.system(command)
+    # if result != 0:
+    #     # failure
+    #     return False
+    return True
+
 # either returns [False, False, False] (failure) or
 # [True, smile_detected, movie_compatible]
-def do_convert(raw_infile, outfile, dmodel, classifier, do_smile, smile_offsets, image_size, initial_steps=10, recon_steps=10, offset_steps=20, end_bumper_steps=10, check_extent=True, wraparound=True):
+def do_convert(raw_infile, outfile, dmodel, classifier, do_smile, smile_offsets, image_size, initial_steps=10, recon_steps=10, offset_steps=20, optimal_steps=10, end_bumper_steps=10, check_extent=True, wraparound=True):
     failure_return_status = False, False, False
 
     # infile = resized_input_file;
@@ -402,27 +412,43 @@ def do_convert(raw_infile, outfile, dmodel, classifier, do_smile, smile_offsets,
             print("faceswap: too many faces in {}".format(infile))
             return failure_return_status
 
+    # save optimal swapped output
+    faceswap.core.do_faceswap(infile, transformed_file, optimal_output)
+    if not enhance_optimal_output():
+        return failure_return_status
+
     last_sequence_index = initial_steps + recon_steps + offset_steps - 1
     last_filename = samples_sequence_filename.format(last_sequence_index)
+    copyfile(last_filename, final_image)
+
+    final_recon_array = imread(final_image, mode='RGB')
+    optimal_recon_array = imread(enhanced_output, mode='RGB')
+    # now save interpolations to optimal
+    for i in range(0,optimal_steps):
+        frac_orig = ((optimal_steps - i) / (1.0 * optimal_steps))
+        frac_optimal = (i / (1.0 * optimal_steps))
+        interpolated_im = frac_orig * final_recon_array + frac_optimal * optimal_recon_array
+        filename = samples_sequence_filename.format(i+last_sequence_index+1)
+        imsave(filename, interpolated_im)
+        print("optimal interpolated file: {}".format(filename))
+
     if wraparound:
         # copy last image back around to first
         first_filename = samples_sequence_filename.format(0)
-        print("wraparound file: {} -> {}".format(last_filename, first_filename))
-        copyfile(last_filename, first_filename)
-        copyfile(last_filename, final_image)
+        print("wraparound file: {} -> {}".format(enhanced_output, first_filename))
+        copyfile(enhanced_output, first_filename)
+
+    last_optimal_index = initial_steps + recon_steps + offset_steps + optimal_steps - 1
 
     # also add a final out bumper
-    for i in range(last_sequence_index, last_sequence_index + end_bumper_steps):
+    for i in range(last_optimal_index, last_optimal_index + end_bumper_steps):
         filename = samples_sequence_filename.format(i + 1)
-        copyfile(last_filename, filename)
+        copyfile(enhanced_output, filename)
         print("end bumper file: {}".format(filename))
-
-    # save optimal swapped output
-    faceswap.core.do_faceswap(optimal_input, transformed_file, optimal_output)
 
     if os.path.exists(movie_file):
         os.remove(movie_file)
-    command = "/usr/bin/ffmpeg -r 20 -f image2 -i \"{}\" -c:v libx264 -crf 20 -pix_fmt yuv420p -tune fastdecode -y -tune zerolatency -profile:v baseline {}".format(ffmpeg_sequence_filename, movie_file)
+    command = "/usr/bin/ffmpeg -r 20 -f image2 -i \"{}\" -vf \"scale='min(1024,iw)':-2\" -c:v libx264 -crf 20 -pix_fmt yuv420p -tune fastdecode -y -tune zerolatency -profile:v baseline {}".format(ffmpeg_sequence_filename, movie_file)
     print("ffmpeg command: {}".format(command))
     result = os.system(command)
     if result != 0:
@@ -473,19 +499,6 @@ def check_lazy_initialize(args, dmodel, classifier, smile_offsets):
 
     return dmodel, classifier, smile_offsets
 
-def enhance_optimal_output():
-    command = "/usr/local/anaconda2/envs/enhance/bin/python ../neural-enhance/enhance.py temp_files/optimal_output_file.png --model dlib_256_s6 --zoom 1"
-    result = os.system(command)
-    if result != 0:
-        # failure
-        return False
-    # command = "convert temp_files/optimal_output_file_ne2x.png -resize 50% temp_files/enhanced.png"
-    # result = os.system(command)
-    # if result != 0:
-    #     # failure
-    #     return False
-    return True
-
 if __name__ == "__main__":
     # argparse
     parser = argparse.ArgumentParser(description='Follow account and repost munged images')
@@ -534,8 +547,6 @@ if __name__ == "__main__":
     if args.input_file:
         dmodel, classifier, smile_offsets = check_lazy_initialize(args, dmodel, classifier, smile_offsets)
         result, had_smile, movie_compatible = do_convert(args.input_file, final_movie, dmodel, classifier, args.do_smile, smile_offsets, args.image_size, check_extent=False, wraparound=args.wraparound)
-        if result:
-            result = enhance_optimal_output()
 
         print("result: {}, had_smile: {}, movie_compatible: {}".format(result, had_smile, movie_compatible))
         if result and not args.no_update:
@@ -612,9 +623,6 @@ if __name__ == "__main__":
             dmodel, classifier, smile_offsets = check_lazy_initialize(args, dmodel, classifier, smile_offsets)
 
             result, had_smile, movie_compatible = do_convert(downloaded_input, final_movie, dmodel, classifier, args.do_smile, smile_offsets, args.image_size)
-
-            if result:
-                result = enhance_optimal_output()
 
             if had_smile:
                 post_text = u"😀⬇{}".format(tweet_suffix)
