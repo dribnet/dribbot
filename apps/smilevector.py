@@ -74,7 +74,7 @@ max_allowable_extent = 180
 min_allowable_extent = 60
 optimal_extent = 128
 # reized input file
-resized_input_file = "temp_files/resized_input_file.png"
+# resized_input_file = "temp_files/resized_input_file.png"
 # the input image file is algined and saved
 aligned_file = "temp_files/aligned_file.png"
 # the reconstruction is also saved
@@ -114,7 +114,7 @@ def make_or_cleanup(local_dir):
         os.remove(os.path.join(local_dir, f))
 
 archive_text = "metadata.txt"
-archive_resized = "input_resized.png"
+# archive_resized = "input_resized.png"
 archive_aligned = "aligned.png"
 archive_recon = "reconstruction.png"
 archive_transformed = "transformed.png"
@@ -130,7 +130,7 @@ def archive_post(subdir, posted_id, original_text, post_text, respond_text, down
     archive_dir = "{}/{}".format(archive_dir, subdir)
     archive_input_path = "{}/{}".format(archive_dir, downloaded_basename)
     archive_text_path = "{}/{}".format(archive_dir, archive_text)
-    archive_resized_path = "{}/{}".format(archive_dir, archive_resized)
+    # archive_resized_path = "{}/{}".format(archive_dir, archive_resized)
     archive_aligned_path = "{}/{}".format(archive_dir, archive_aligned)
     archive_recon_path = "{}/{}".format(archive_dir, archive_recon)
     archive_transformed_path = "{}/{}".format(archive_dir, archive_transformed)
@@ -157,54 +157,51 @@ def archive_post(subdir, posted_id, original_text, post_text, respond_text, down
 
     # save input, a few working files, outputs
     copyfile(downloaded_input, archive_input_path)
-    copyfile(resized_input_file, archive_resized_path)
+    # copyfile(resized_input_file, archive_resized_path)
     copyfile(aligned_file, archive_aligned_path)
     copyfile(recon_file, archive_recon_path)
     copyfile(transformed_file, archive_transformed_path)
     copyfile(swapped_file, archive_swapped_path)
     copyfile(final_image, archive_final_image_path)
+    copyfile(final_movie, archive_final_movie_path)
     copyfile(optimal_input, archive_optimal_input_path)
     copyfile(optimal_output, archive_optimal_output_path)
     copyfile(enhanced_output, archive_enhanced_output_path)
 
-max_extent = 720
+max_initial_extent = 960
+max_movie_extent = 720
+# returns [True, movie_compatible, scale_down_ratio]
 def resize_to_a_good_size(infile, outfile):
     image_array = imread(infile, mode='RGB')
 
-    # this is believed to no longer be necessary because imread is coercing to rgb
-    # im_shape = image_array.shape
-    # if len(im_shape) == 2:
-    #     h, w = im_shape
-    #     print("converting from 1 channel to 3")
-    #     image_array = np.array([image_array, image_array, image_array])
-    # else:
-    #     h, w, _ = im_shape
-
     im_shape = image_array.shape
     h, w, _ = im_shape
+    # assume initially movie compatible, then confirm
+    movie_compatible = True
 
-    # maximum twitter aspect ratio is 239:100
-    max_width = int(h * 230 / 100)
-    if w > max_width:
-        offset_x = (w - max_width)/2
-        print("cropping from {0},{1} to {2},{1}".format(w,h,max_width))
-        image_array = image_array[:,offset_x:offset_x+max_width,:]
-        w = max_width
-    # minimum twitter aspect ratio is maybe 1:2
-    max_height = int(w * 2)
-    if h > max_height:
-        offset_y = (h - max_height)/2
-        print("cropping from {0},{1} to {0},{2}".format(w,h,max_height))
-        image_array = image_array[offset_y:offset_y+max_height,:,:]
-        h = max_height
+    # maximum twitter aspect ratio for a movie is 239:100
+    ### DISABLING CROPPING FOR NOW
+    # max_width = int(h * 230 / 100)
+    # if w > max_width:
+    #     offset_x = (w - max_width)/2
+    #     print("cropping from {0},{1} to {2},{1}".format(w,h,max_width))
+    #     image_array = image_array[:,offset_x:offset_x+max_width,:]
+    #     w = max_width
+    # # minimum twitter aspect ratio is maybe 1:2
+    # max_height = int(w * 2)
+    # if h > max_height:
+    #     offset_y = (h - max_height)/2
+    #     print("cropping from {0},{1} to {0},{2}".format(w,h,max_height))
+    #     image_array = image_array[offset_y:offset_y+max_height,:,:]
+    #     h = max_height
 
     scale_down = None
     if w >= h:
-        if w > max_extent:
-            scale_down = float(max_extent) / w
+        if w > max_initial_extent:
+            scale_down = float(max_initial_extent) / w
     else:
-        if h > max_extent:
-            scale_down = float(max_extent) / h
+        if h > max_initial_extent:
+            scale_down = float(max_initial_extent) / h
 
     if scale_down is not None:
         new_w = int(scale_down * w)
@@ -217,15 +214,17 @@ def resize_to_a_good_size(infile, outfile):
     new_w = new_w - (new_w % 4)
     new_h = new_h - (new_h % 4)
 
-    if new_w >= 1.5 * new_h:
-        wide_image = True
-    else:
-        wide_image = False
+    # aspect ratio must be at least 3/2
+    if new_w < 1.5 * new_h:
+        movie_compatible = False
+    # maximum twitter aspect ratio for a movie is 239:100
+    elif new_w > 2.3 * new_h:
+        movie_compatible = False
 
     print("resizing from {},{} to {},{}".format(w, h, new_w, new_h))
     image_array_resized = imresize(image_array, (new_h, new_w))
     imsave(outfile, image_array_resized)
-    return True, wide_image, scale_down
+    return True, movie_compatible, scale_down
 
 def resize_to_optimal(infile, scale_ratio, rect, outfile):
     image_array = imread(infile, mode='RGB')
@@ -240,29 +239,52 @@ def resize_to_optimal(infile, scale_ratio, rect, outfile):
     new_h = new_h - (new_h % 4)
 
     print("optimal resize of width {} and ratio {} went from {},{} to {},{}".format(width, scale_ratio, w, h, new_w, new_h))
-    image_array_resized = imresize(image_array, (new_h, new_w))
+    new_shape = (new_h, new_w)
+    image_array_resized = imresize(image_array, new_shape)
     imsave(outfile, image_array_resized)
+    return new_shape
+
+def check_movie_compatible(shape):
+    h, w = shape
+    # aspect ratio must be at least 3/2
+    if w < 1.5 * h:
+        return False
+    # maximum twitter aspect ratio for a movie is 239:100
+    elif w > 2.3 * h:
+        return False
+    elif w > max_movie_extent:
+        return False
+    else:
+        return True
 
 def str2bool(v):
   return v.lower() in ("yes", "true", "t", "1")
 
+# either returns [False, False, False] (failure) or
+# [True, smile_detected, movie_compatible]
 def do_convert(raw_infile, outfile, dmodel, classifier, do_smile, smile_offsets, image_size, initial_steps=10, recon_steps=10, offset_steps=20, end_bumper_steps=10, check_extent=True, wraparound=True):
     failure_return_status = False, False, False
 
-    infile = resized_input_file;
+    # infile = resized_input_file;
 
-    did_resize, wide_image, scale_ratio = resize_to_a_good_size(raw_infile, infile)
-    if not did_resize:
-        return failure_return_status
+    # did_resize, movie_compatible, scale_ratio = resize_to_a_good_size(raw_infile, infile)
+    # if not did_resize:
+    #     return failure_return_status
 
     # first align input face to canonical alignment and save result
     try:
-        if not doalign.align_face(infile, aligned_file, image_size, max_extension_amount=0):
+        did_align, align_rect = doalign.align_face(raw_infile, aligned_file, image_size, max_extension_amount=0)
+        if not did_align:
             return failure_return_status
     except Exception as e:
         # get_landmarks strangely fails sometimes (see bad_shriek test image)
         print("faceswap: doalign failure {}".format(e))
         return failure_return_status
+
+    # save optimally scaled input
+    optimal_shape = resize_to_optimal(raw_infile, 1.0, align_rect, optimal_input)
+    infile = optimal_input;
+    movie_compatible = check_movie_compatible(optimal_shape)
 
     # go ahead and cache the main (body) image and landmarks, and fail if face is too big
     try:
@@ -285,28 +307,8 @@ def do_convert(raw_infile, outfile, dmodel, classifier, do_smile, smile_offsets,
     else:
         print("face not too large: {}".format(max_extent))
 
-    # save optimally scaled input
-    resize_to_optimal(raw_infile, scale_ratio, body_rect, optimal_input)
-
     # read in aligned file to image array
     _, _, anchor_images = anchors_from_image(aligned_file, image_size=(image_size, image_size))
-
-    # classifiy aligned as smiling or not
-    classifier_function = None
-    if do_smile is not None:
-        has_smile = not str2bool(do_smile)
-    else:
-        if classifier is not None:
-            print('Compiling classifier function...')
-            classifier_function = theano.function(classifier.inputs, classifier.outputs)
-            yhat = classifier_function(anchor_images[0].reshape(1,3,image_size,image_size))
-            yn = np.array(yhat[0])
-            has_smile = False
-            if(yn[0][31] >= 0.5):
-                has_smile = True
-            print("Smile detector:", yn[0][31], has_smile)
-        else:
-            has_smile = random.choice([True, False])
 
     # encode aligned image array as vector, apply offset
     encoded = dmodel.encode_images(anchor_images)[0]
@@ -316,15 +318,18 @@ def do_convert(raw_infile, outfile, dmodel, classifier, do_smile, smile_offsets,
     smile_score = np.dot(smile_vector, encoded)
     smile_detected = (smile_score > 0)
     print("Smile vector detector:", smile_score, smile_detected)
-    if do_smile is None:
-        has_smile = smile_detected
 
-    if has_smile:
-        print("Smile detected, removing")
-        chosen_anchor = [encoded, encoded - smile_vector + deblur_vector]
+    if do_smile is not None:
+        apply_smile = str2bool(do_smile)
     else:
-        print("Smile not detected, providing")
+        apply_smile = not smile_detected
+
+    if apply_smile:
+        print("Adding a smile")
         chosen_anchor = [encoded, encoded + smile_vector + deblur_vector]
+    else:
+        print("Removing a smile")
+        chosen_anchor = [encoded, encoded - smile_vector + deblur_vector]
 
     z_dim = dmodel.get_zdim()
 
@@ -425,7 +430,7 @@ def do_convert(raw_infile, outfile, dmodel, classifier, do_smile, smile_offsets,
     if not os.path.isfile(movie_file):
         return failure_return_status
 
-    return True, has_smile, wide_image
+    return True, smile_detected, movie_compatible
 
 # throws exeption if things don't go well
 class TwitterAPIFail(Exception):
@@ -469,7 +474,7 @@ def check_lazy_initialize(args, dmodel, classifier, smile_offsets):
     return dmodel, classifier, smile_offsets
 
 def enhance_optimal_output():
-    command = "/usr/local/anaconda2/envs/enhance/bin/python ../neural-enhance/enhance.py temp_files/optimal_output_file.png --model dlib_256_s4 --zoom 1"
+    command = "/usr/local/anaconda2/envs/enhance/bin/python ../neural-enhance/enhance.py temp_files/optimal_output_file.png --model dlib_256_s6 --zoom 1"
     result = os.system(command)
     if result != 0:
         # failure
@@ -528,11 +533,11 @@ if __name__ == "__main__":
     # do debug as a special case
     if args.input_file:
         dmodel, classifier, smile_offsets = check_lazy_initialize(args, dmodel, classifier, smile_offsets)
-        result, had_smile, is_wide = do_convert(args.input_file, final_movie, dmodel, classifier, args.do_smile, smile_offsets, args.image_size, check_extent=False, wraparound=args.wraparound)
+        result, had_smile, movie_compatible = do_convert(args.input_file, final_movie, dmodel, classifier, args.do_smile, smile_offsets, args.image_size, check_extent=False, wraparound=args.wraparound)
         if result:
             result = enhance_optimal_output()
 
-        print("result: {}, had_smile: {}".format(result, had_smile))
+        print("result: {}, had_smile: {}, movie_compatible: {}".format(result, had_smile, movie_compatible))
         if result and not args.no_update:
             input_basename = os.path.basename(args.input_file)
             archive_post(archive_subdir, "no_id", had_smile, "no_post", "no_respond", input_basename, args.input_file, final_movie, "debug")
@@ -606,7 +611,7 @@ if __name__ == "__main__":
         else:
             dmodel, classifier, smile_offsets = check_lazy_initialize(args, dmodel, classifier, smile_offsets)
 
-            result, had_smile, is_wide = do_convert(downloaded_input, final_movie, dmodel, classifier, args.do_smile, smile_offsets, args.image_size)
+            result, had_smile, movie_compatible = do_convert(downloaded_input, final_movie, dmodel, classifier, args.do_smile, smile_offsets, args.image_size)
 
             if result:
                 result = enhance_optimal_output()
@@ -638,7 +643,7 @@ if __name__ == "__main__":
                 while update_response is None:
                     try:
                         bytes_sent = 0
-                        if not args.post_image and is_wide:
+                        if not args.post_image and movie_compatible:
                             total_bytes = os.path.getsize(final_movie)
                             file = open(final_movie, 'rb')
                             r = twitter_api.request('media/upload', {'command':'INIT', 'media_type':'video/mp4', 'total_bytes':total_bytes})
