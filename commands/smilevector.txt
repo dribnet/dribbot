@@ -2,12 +2,10 @@
 PYTHONPATH=../faceswap:../discgen:../plat:. \
     unbuffer python \
     apps/smilevector.py \
-    --input-file inputs/french.jpg \
+    --input-file inputs/too_small.jpg \
     --debug \
-    --archive-subdir french3 \
+    --archive-subdir toosmall1 \
     --image-size 256 \
-    --classifier ../discgen/models/celeba_classifier_dlib_256_d4_02/celeba_classifier_dlib_256_d4_02.zip \
-    --model ../discgen/models/celeba_dlib_256_320z_d5_10/celeba_dlib_256_320z_d5_10.zip \
     --anchor-offset ../discgen/models/celeba_dlib_256_320z_d5_10/atvec_happy_blur2.json \
     --anchor-indexes 0,_,1
 

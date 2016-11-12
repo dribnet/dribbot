@@ -30,10 +30,10 @@ import theano
 import hashlib
 import time
 
-# tweet_suffix = u""
+tweet_suffix = u""
 # tweet_suffix = u" #test_hashtag"
 # tweet_suffix = u" #nuclai16"
-tweet_suffix = u" #NeuralPuppet"
+# tweet_suffix = u" #NeuralPuppet"
 
 # returns True if file not found and can be processed
 def check_recent(infile, recentfile):
@@ -283,7 +283,9 @@ def do_convert(raw_infile, outfile, dmodel, classifier, do_smile, smile_offsets,
 
     # first align input face to canonical alignment and save result
     try:
-        did_align, align_rect = doalign.align_face(raw_infile, aligned_file, image_size, max_extension_amount=0)
+        did_align, align_rect = doalign.align_face(raw_infile, aligned_file, image_size, max_extension_amount=0, min_span=96)
+        width = align_rect.right()-align_rect.left()
+        print("did_align, rect, width:{},{},{}".format(did_align, align_rect, width))
         if not did_align:
             return failure_return_status
     except Exception as e:
@@ -623,6 +625,7 @@ if __name__ == "__main__":
             dmodel, classifier, smile_offsets = check_lazy_initialize(args, dmodel, classifier, smile_offsets)
 
             result, had_smile, movie_compatible = do_convert(downloaded_input, final_movie, dmodel, classifier, args.do_smile, smile_offsets, args.image_size)
+            print("result: {}, had_smile: {}, movie_compatible: {}".format(result, had_smile, movie_compatible))
 
             if had_smile:
                 post_text = u"😀⬇{}".format(tweet_suffix)
