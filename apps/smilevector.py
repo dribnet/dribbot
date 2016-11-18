@@ -258,7 +258,7 @@ def str2bool(v):
   return v.lower() in ("yes", "true", "t", "1")
 
 def enhance_optimal_output():
-    command = "/usr/local/anaconda2/envs/enhance/bin/python ../neural-enhance/enhance.py temp_files/optimal_output_file.png --model dlib_256_s6 --zoom 1"
+    command = "/usr/local/anaconda2/envs/enhance/bin/python ../neural-enhance3/enhance.py temp_files/optimal_output_file.png --model dlib_256_neupup1 --zoom 1"
     result = os.system(command)
     if result != 0:
         # failure
@@ -271,9 +271,9 @@ def enhance_optimal_output():
     return True
 
 # either returns [False, False, False] (failure) or
-# [True, smile_detected, movie_compatible]
+# [True, anchor_index, smile_detected, movie_compatible]
 def do_convert(raw_infile, outfile, dmodel, classifier, do_smile, smile_offsets, image_size, initial_steps=10, recon_steps=10, offset_steps=20, optimal_steps=10, end_bumper_steps=10, check_extent=True, wraparound=True):
-    failure_return_status = False, False, False
+    failure_return_status = False, False, False, False
 
     # infile = resized_input_file;
 
@@ -325,11 +325,13 @@ def do_convert(raw_infile, outfile, dmodel, classifier, do_smile, smile_offsets,
     # encode aligned image array as vector, apply offset
     encoded = dmodel.encode_images(anchor_images)[0]
 
-    smile_vector = smile_offsets[0]
-    deblur_vector = smile_offsets[1]
+    deblur_vector = smile_offsets[0]
+    # randint is inclusive and blur is [0], so subtract 2
+    anchor_index = random.randint(0, len(smile_offsets) - 2)
+    smile_vector = smile_offsets[anchor_index+1]
     smile_score = np.dot(smile_vector, encoded)
     smile_detected = (smile_score > 0)
-    print("Smile vector detector:", smile_score, smile_detected)
+    print("Attribute vector detector for {}: {} {}".format(anchor_index, smile_score, smile_detected))
 
     if do_smile is not None:
         apply_smile = str2bool(do_smile)
@@ -337,10 +339,10 @@ def do_convert(raw_infile, outfile, dmodel, classifier, do_smile, smile_offsets,
         apply_smile = not smile_detected
 
     if apply_smile:
-        print("Adding a smile")
+        print("Adding attribute {}".format(anchor_index))
         chosen_anchor = [encoded, encoded + smile_vector + deblur_vector]
     else:
-        print("Removing a smile")
+        print("Removing attribute {}".format(anchor_index))
         chosen_anchor = [encoded, encoded - smile_vector + deblur_vector]
 
     z_dim = dmodel.get_zdim()
@@ -458,7 +460,7 @@ def do_convert(raw_infile, outfile, dmodel, classifier, do_smile, smile_offsets,
     if not os.path.isfile(movie_file):
         return failure_return_status
 
-    return True, smile_detected, movie_compatible
+    return True, anchor_index, smile_detected, movie_compatible
 
 # throws exeption if things don't go well
 class TwitterAPIFail(Exception):
@@ -471,7 +473,7 @@ def check_status(r):
         print(r.text)
         raise TwitterAPIFail
 
-def check_lazy_initialize(args, dmodel, classifier, smile_offsets):
+def check_lazy_initialize(args, dmodel, classifier, vector_offsets):
     # debug: don't load anything...
     # return dmodel, classifier, smile_offsets
 
@@ -486,20 +488,15 @@ def check_lazy_initialize(args, dmodel, classifier, smile_offsets):
     #     classifier = create_running_graphs(args.classifier)
 
     # get attributes
-    if smile_offsets is None and args.anchor_offset is not None:
+    if vector_offsets is None and args.anchor_offset is not None:
         offsets = get_json_vectors(args.anchor_offset)
         dim = len(offsets[0])
         offset_indexes = args.anchor_indexes.split(",")
-        smile_offset_smile = offset_from_string(offset_indexes[0], offsets, dim)
-        smile_offset_open = offset_from_string(offset_indexes[1], offsets, dim)
-        smile_offset_blur = offset_from_string(offset_indexes[2], offsets, dim)
-        smile_vector = 1 * smile_offset_open + 1 * smile_offset_smile
-        deblur_vector = - 1 * smile_offset_blur
-        # pos_smile_offset = 1 * smile_offset_open + 1 * smile_offset_smile - 1 * smile_offset_blur
-        # neg_smile_offset = -1 * smile_offset_open - 1 * smile_offset_smile - 1 * smile_offset_blur
-        smile_offsets = [smile_vector, deblur_vector]
+        vector_offsets = [ -1 * offset_from_string(offset_indexes[0], offsets, dim) ]
+        for i in range(len(offset_indexes) - 1):
+            vector_offsets.append(offset_from_string(offset_indexes[i+1], offsets, dim))
 
-    return dmodel, classifier, smile_offsets
+    return dmodel, classifier, vector_offsets
 
 if __name__ == "__main__":
     # argparse
@@ -522,8 +519,10 @@ if __name__ == "__main__":
                         help="path to the saved model")
     parser.add_argument('--anchor-offset', dest='anchor_offset', default=None,
                         help="use json file as source of each anchors offsets")
-    parser.add_argument('--anchor-indexes', dest='anchor_indexes', default="31,21,41",
-                        help="smile_index,open_mouth_index,blur_index")
+    parser.add_argument('--anchor-indexes', dest='anchor_indexes', default="0,1,2",
+                        help="blur_index,smile_index,surprise_index,...")
+    parser.add_argument('--anchor-text', dest='anchor_text', default=u"😀,😲,😠",
+                        help="smile_emoji,surprise_emoji,...")
     parser.add_argument("--image-size", dest='image_size', type=int, default=64,
                         help="size of (offset) images")
     parser.add_argument('--classifier', dest='classifier', type=str,
@@ -548,9 +547,9 @@ if __name__ == "__main__":
     # do debug as a special case
     if args.input_file:
         dmodel, classifier, smile_offsets = check_lazy_initialize(args, dmodel, classifier, smile_offsets)
-        result, had_smile, movie_compatible = do_convert(args.input_file, final_movie, dmodel, classifier, args.do_smile, smile_offsets, args.image_size, check_extent=False, wraparound=args.wraparound)
+        result, anchor_index, had_smile, movie_compatible = do_convert(args.input_file, final_movie, dmodel, classifier, args.do_smile, smile_offsets, args.image_size, check_extent=False, wraparound=args.wraparound)
 
-        print("result: {}, had_smile: {}, movie_compatible: {}".format(result, had_smile, movie_compatible))
+        print("result: {}, anchor_index: {}, had_attribute: {}, movie_compatible: {}".format(result, anchor_index, had_smile, movie_compatible))
         if result and not args.no_update:
             input_basename = os.path.basename(args.input_file)
             archive_post(archive_subdir, "no_id", had_smile, "no_post", "no_respond", input_basename, args.input_file, final_movie, "debug")
@@ -624,13 +623,14 @@ if __name__ == "__main__":
         else:
             dmodel, classifier, smile_offsets = check_lazy_initialize(args, dmodel, classifier, smile_offsets)
 
-            result, had_smile, movie_compatible = do_convert(downloaded_input, final_movie, dmodel, classifier, args.do_smile, smile_offsets, args.image_size)
-            print("result: {}, had_smile: {}, movie_compatible: {}".format(result, had_smile, movie_compatible))
+            result, anchor_index, had_smile, movie_compatible = do_convert(downloaded_input, final_movie, dmodel, classifier, args.do_smile, smile_offsets, args.image_size)
+            print("result: {}, anchor_index: {}, had_attribute: {}, movie_compatible: {}".format(result, anchor_index, had_smile, movie_compatible))
 
+            blurbs = args.anchor_text.split(",")
             if had_smile:
-                post_text = u"😀⬇{}".format(tweet_suffix)
+                post_text = u"{}⬇{}".format(blurbs[anchor_index], tweet_suffix)
             else:
-                post_text = u"😀⬆{}".format(tweet_suffix)
+                post_text = u"{}⬆{}".format(blurbs[anchor_index], tweet_suffix)
 
         if args.debug:
             print(u"Update text: {}, Movie: {}".format(original_text, final_movie))
