@@ -258,7 +258,7 @@ def str2bool(v):
   return v.lower() in ("yes", "true", "t", "1")
 
 def enhance_optimal_output():
-    command = "/usr/local/anaconda2/envs/enhance/bin/python ../neural-enhance3/enhance.py temp_files/optimal_output_file.png --model dlib_256_neupup1 --zoom 1"
+    command = "/usr/local/anaconda2/envs/enhance/bin/python ../neural-enhance3/enhance.py temp_files/optimal_output_file.png --model dlib_256_neupup1 --zoom 1 --device gpu1"
     result = os.system(command)
     if result != 0:
         # failure
@@ -311,7 +311,7 @@ def do_convert(raw_infile, outfile, dmodel, classifier, do_smile, smile_offsets,
         print("faceswap: too many faces in {}".format(infile))
         return failure_return_status
     if check_extent and max_extent > max_allowable_extent:
-        print("face to large: {}".format(max_extent))
+        print("face too large: {}".format(max_extent))
         return failure_return_status
     elif check_extent and max_extent < min_allowable_extent:
         print("face to small: {}".format(max_extent))
