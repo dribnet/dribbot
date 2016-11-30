@@ -14,8 +14,9 @@ from shutil import copyfile
 import os
 import random
 from subprocess import call
+from plat.sampling import real_glob
 
-from plat.utils import anchors_from_image, offset_from_string, get_json_vectors
+from plat.utils import anchors_from_image, offset_from_string, vectors_from_json_filelist
 from plat.grid_layout import create_mine_grid
 
 # discgen related imports
@@ -489,7 +490,7 @@ def check_lazy_initialize(args, dmodel, classifier, vector_offsets):
 
     # get attributes
     if vector_offsets is None and args.anchor_offset is not None:
-        offsets = get_json_vectors(args.anchor_offset)
+        offsets = vectors_from_json_filelist(real_glob(args.anchor_offset))
         dim = len(offsets[0])
         offset_indexes = args.anchor_indexes.split(",")
         vector_offsets = [ -1 * offset_from_string(offset_indexes[0], offsets, dim) ]
@@ -521,7 +522,8 @@ if __name__ == "__main__":
                         help="use json file as source of each anchors offsets")
     parser.add_argument('--anchor-indexes', dest='anchor_indexes', default="0,1,2",
                         help="blur_index,smile_index,surprise_index,...")
-    parser.add_argument('--anchor-text', dest='anchor_text', default=u"😀,😲,😠",
+    parser.add_argument('--anchor-text', dest='anchor_text', 
+                        default=u"😀,😠,👓",
                         help="smile_emoji,surprise_emoji,...")
     parser.add_argument("--image-size", dest='image_size', type=int, default=64,
                         help="size of (offset) images")

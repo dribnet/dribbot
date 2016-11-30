@@ -1,3 +1,18 @@
+=== glasses
+THEANO_FLAGS="device=gpu1" \
+PYTHONPATH=../faceswap:../discgen:../plat:. \
+    unbuffer python \
+    apps/smilevector.py \
+    --input-file inputs/pm.png \
+    --image-size 256 \
+    --debug \
+    --archive-subdir pm_glasses2 \
+    --classifier ../discgen/models/celeba_classifier_dlib_256_d4_02/celeba_classifier_dlib_256_d4_02.zip \
+    --model ../discgen/models/celeba_dlib_256_320z_d5_10/celeba_dlib_256_320z_d5_10.zip \
+    --anchor-offset '../discgen/models/celeba_dlib_256_320z_d5_10/{atvec_blur2,atvec_rafd_{happy,angry},atvecs_all}.json' \
+    --anchor-text 😀,😲,👓 \
+    --anchor-indexes 0,1,2,18
+
 === surprise
 THEANO_FLAGS="device=gpu1" \
 PYTHONPATH=../faceswap:../discgen:../plat:. \
