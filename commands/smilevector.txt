@@ -1,3 +1,15 @@
+=== random smiles
+PYTHONPATH=../faceswap:../discgen:../plat:. \
+    unbuffer python \
+    apps/smilevector.py \
+    --input-file inputs/request3.jpg \
+    --archive-subdir request3 \
+    --image-size 256 \
+    --do-smile 1 \
+    --model ../discgen/models/celeba_dlib_256_320z_d5_10/celeba_dlib_256_320z_d5_10.zip \
+    --anchor-offset '../discgen/models/celeba_dlib_256_320z_d5_10/{atvec_blur2,atvec_rafd_{happy,angry},atvecs_all}.json' \
+    --anchor-indexes 0,1
+
 === glasses
 THEANO_FLAGS="device=gpu1" \
 PYTHONPATH=../faceswap:../discgen:../plat:. \

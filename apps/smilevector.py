@@ -284,7 +284,7 @@ def do_convert(raw_infile, outfile, dmodel, classifier, do_smile, smile_offsets,
 
     # first align input face to canonical alignment and save result
     try:
-        did_align, align_rect = doalign.align_face(raw_infile, aligned_file, image_size, max_extension_amount=0, min_span=96)
+        did_align, align_rect = doalign.align_face(raw_infile, aligned_file, image_size, max_extension_amount=0, min_span=72)
         width = align_rect.right()-align_rect.left()
         print("did_align, rect, width:{},{},{}".format(did_align, align_rect, width))
         if not did_align:
