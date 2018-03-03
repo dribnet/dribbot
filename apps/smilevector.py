@@ -71,7 +71,7 @@ def add_to_recent(infile, comment, recentfile, limit=500):
     with open(recentfile, "w") as f:
         f.writelines(content)
 
-max_allowable_extent = 180
+max_allowable_extent = 300
 min_allowable_extent = 60
 optimal_extent = 128
 # reized input file
@@ -450,6 +450,14 @@ def do_convert(raw_infile, outfile, dmodel, classifier, do_smile, smile_offsets,
         filename = samples_sequence_filename.format(i + 1)
         copyfile(enhanced_output, filename)
         print("end bumper file: {}".format(filename))
+
+    # add fakemarks
+    copy_comp = "/usr/bin/composite -gravity SouthEast fakemark.png {} {}".format(enhanced_output, enhanced_output)
+    os.system(copy_comp)
+    for i in range(0, last_optimal_index + end_bumper_steps + 1):
+        filename = samples_sequence_filename.format(i)
+        copy_comp = "/usr/bin/composite -gravity SouthEast fakemark.png {} {}".format(filename, filename)
+        os.system(copy_comp)
 
     if os.path.exists(movie_file):
         os.remove(movie_file)
