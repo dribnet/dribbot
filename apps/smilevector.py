@@ -451,12 +451,17 @@ def do_convert(raw_infile, outfile, dmodel, classifier, do_smile, smile_offsets,
         copyfile(enhanced_output, filename)
         print("end bumper file: {}".format(filename))
 
-    # add fakemarks
+    # convert everything to width 640
+    # resize and add fakemarks
+    resize_command = "/usr/bin/convert -resize 640x {} {}".format(enhanced_output, enhanced_output)
     copy_comp = "/usr/bin/composite -gravity SouthEast -geometry +5+5 fakemark.png {} {}".format(enhanced_output, enhanced_output)
+    os.system(resize_command)
     os.system(copy_comp)
     for i in range(0, last_optimal_index + end_bumper_steps + 1):
         filename = samples_sequence_filename.format(i)
+        resize_command = "/usr/bin/convert -resize 640x {} {}".format(filename, filename)
         copy_comp = "/usr/bin/composite -gravity SouthEast -geometry +5+5 fakemark.png {} {}".format(filename, filename)
+        os.system(resize_command)
         os.system(copy_comp)
 
     if os.path.exists(movie_file):
